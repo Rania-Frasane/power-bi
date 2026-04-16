@@ -9,7 +9,8 @@ from api.views import (
     UserViewSet, DatasetViewSet, DashboardViewSet, 
     WidgetViewSet, APIConnectionViewSet, DashboardFilterViewSet,
     DataPreviewView, ExecuteQueryView, ExportDashboardView,
-    ShareDashboardView
+    ShareDashboardView, FileUploadView, DatasetAnalysisView,
+    GenerateDashboardView
 )
 
 router = DefaultRouter()
@@ -26,7 +27,10 @@ urlpatterns = [
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/', include(router.urls)),
     path('api/datasets/<int:pk>/preview/', DataPreviewView.as_view(), name='dataset-preview'),
+    path('api/datasets/<int:pk>/analyze/', DatasetAnalysisView.as_view(), name='dataset-analyze'),
     path('api/execute-query/', ExecuteQueryView.as_view(), name='execute-query'),
+    path('api/upload/', FileUploadView.as_view(), name='file-upload'),
+    path('api/dashboards/generate/', GenerateDashboardView.as_view(), name='generate-dashboard'),
     path('api/dashboards/<int:pk>/export/', ExportDashboardView.as_view(), name='export-dashboard'),
     path('api/dashboards/<int:pk>/share/', ShareDashboardView.as_view(), name='share-dashboard'),
 ]

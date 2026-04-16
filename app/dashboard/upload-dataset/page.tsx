@@ -87,7 +87,7 @@ export default function UploadDatasetPage() {
 
     const token = accessToken || localStorage.getItem('access_token')
 
-    const response = await fetch('http://localhost:8000/api/datasets/', {
+    const response = await fetch('http://localhost:8000/api/upload/', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -106,7 +106,13 @@ export default function UploadDatasetPage() {
     }
 
     toast.success('Dataset uploaded successfully!')
-    router.push('/dashboard/datasets')
+    // Redirect to analyze page to trigger LLM analysis
+    const datasetId = responseData?.id
+    if (datasetId) {
+      router.push(`/dashboard/datasets/${datasetId}/analyze`)
+    } else {
+      router.push('/dashboard/datasets')
+    }
   } catch (error) {
     toast.error(error instanceof Error ? error.message : 'Upload failed')
   } finally {

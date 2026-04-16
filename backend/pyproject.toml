@@ -18,6 +18,9 @@ dependencies = [
     "Pillow==10.1.0",
     "reportlab==4.0.7",
     "python-dateutil==2.8.2",
+    "ai==0.3.0",
+    "python-dotenv==1.0.0",
+    "numpy==1.24.3",
 ]
 
 [build-system]

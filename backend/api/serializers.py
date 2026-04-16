@@ -6,7 +6,7 @@ from rest_framework import serializers
 from django.contrib.auth.models import User
 from .models import (
     Dataset, APIConnection, Dashboard, Widget, 
-    DashboardFilter, UserPreference
+    DashboardFilter, UserPreference, DatasetAnalysis
 )
 
 
@@ -119,3 +119,16 @@ class UserPreferenceSerializer(serializers.ModelSerializer):
         model = UserPreference
         fields = ['theme', 'timezone', 'auto_logout', 'updated_at']
         read_only_fields = ['updated_at']
+
+
+class DatasetAnalysisSerializer(serializers.ModelSerializer):
+    """Dataset analysis serializer"""
+    class Meta:
+        model = DatasetAnalysis
+        fields = [
+            'id', 'dataset', 'summary', 'key_patterns', 'anomalies',
+            'data_quality_score', 'data_quality_issues', 'recommendations',
+            'column_insights', 'recommended_visualizations', 'dashboard_layout',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']

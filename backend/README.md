@@ -60,12 +60,13 @@ The API will be available at `http://localhost:8000/api/`
 
 ### Datasets
 - `GET /api/datasets/` - List user's datasets
-- `POST /api/datasets/` - Create new dataset
+- `POST /api/upload/` - Upload CSV, Excel, or JSON file (NEW)
 - `GET /api/datasets/{id}/` - Get dataset details
 - `PUT /api/datasets/{id}/` - Update dataset
 - `DELETE /api/datasets/{id}/` - Delete dataset
 - `POST /api/datasets/{id}/refresh/` - Refresh dataset from source
 - `GET /api/datasets/{id}/preview/` - Preview dataset
+- `POST /api/datasets/{id}/analyze/` - Analyze dataset with LLM (NEW)
 
 ### API Connections
 - `GET /api/connections/` - List API/database connections
@@ -75,6 +76,7 @@ The API will be available at `http://localhost:8000/api/`
 ### Dashboards
 - `GET /api/dashboards/` - List user's dashboards
 - `POST /api/dashboards/` - Create new dashboard
+- `POST /api/dashboards/generate/` - Auto-generate dashboard from dataset (NEW)
 - `GET /api/dashboards/{id}/` - Get dashboard with widgets
 - `PUT /api/dashboards/{id}/` - Update dashboard
 - `DELETE /api/dashboards/{id}/` - Delete dashboard

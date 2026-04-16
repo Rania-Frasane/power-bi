@@ -204,3 +204,35 @@ class UserPreference(models.Model):
 
     def __str__(self):
         return f"{self.user.username} preferences"
+
+
+class DatasetAnalysis(models.Model):
+    """LLM-generated insights and analysis for datasets"""
+    dataset = models.OneToOneField(Dataset, on_delete=models.CASCADE, related_name='analysis')
+    
+    # Column analysis and statistics
+    column_insights = models.JSONField(default=dict, help_text='AI insights for each column')
+    data_quality_score = models.FloatField(default=0.0, help_text='0-100 score for data quality')
+    data_quality_issues = models.JSONField(default=list, help_text='List of identified data quality issues')
+    
+    # Overall insights
+    key_patterns = models.JSONField(default=list, help_text='Key patterns found in data')
+    anomalies = models.JSONField(default=list, help_text='Detected anomalies')
+    recommendations = models.JSONField(default=list, help_text='LLM recommendations for analysis')
+    
+    # Chart recommendations
+    recommended_visualizations = models.JSONField(default=list, help_text='Suggested chart types and configs')
+    dashboard_layout = models.JSONField(default=dict, help_text='Suggested dashboard layout')
+    
+    # Summary
+    summary = models.TextField(blank=True, help_text='Executive summary of dataset')
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = "Dataset Analysis"
+        verbose_name_plural = "Dataset Analyses"
+    
+    def __str__(self):
+        return f"Analysis for {self.dataset.name}"
