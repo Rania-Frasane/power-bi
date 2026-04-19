@@ -93,8 +93,9 @@ export default function UploadDatasetPage() {
         Authorization: `Bearer ${token}`,
       },
       body: uploadFormData,
+      
     })
-
+console.log(token)
     const contentType = response.headers.get('content-type')
     let responseData: any = null
     if (contentType && contentType.includes('application/json')) {
@@ -104,7 +105,13 @@ export default function UploadDatasetPage() {
     if (!response.ok) {
       throw new Error(responseData?.detail || 'Upload failed')
     }
-
+console.log("🚀 Uploading dataset...")
+console.log({
+  name: formData.name,
+  description: formData.description,
+  fileName: file.name,
+  fileType: file.type,
+})
     toast.success('Dataset uploaded successfully!')
     router.push('/dashboard/datasets')
   } catch (error) {

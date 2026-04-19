@@ -12,7 +12,7 @@ import {
   Zap,
   Activity,
   Grid3x3,
-  Scatter3D,
+  ScatterChart,
   Plus,
 } from 'lucide-react'
 import {
@@ -39,7 +39,7 @@ const WIDGET_OPTIONS = [
   { type: 'kpi', label: 'KPI Card', icon: Zap },
   { type: 'metric', label: 'Metric Card', icon: Activity },
   { type: 'heatmap', label: 'Heatmap', icon: Grid3x3 },
-  { type: 'scatter', label: 'Scatter Plot', icon: Scatter3D },
+  { type: 'scatter', label: 'Scatter Plot', icon: ScatterChart },
 ]
 
 export function WidgetToolbar({ datasets }: WidgetToolbarProps) {

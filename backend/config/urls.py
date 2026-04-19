@@ -1,12 +1,17 @@
 """
 URL configuration for analytics dashboard backend.
 """
+
 from django.contrib import admin
 from django.urls import path, include
+from django.conf import settings
+from django.conf.urls.static import static
+
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+
 from api.views import (
-    UserViewSet, DatasetViewSet, DashboardViewSet, 
+    UserViewSet, DatasetViewSet, DashboardViewSet,
     WidgetViewSet, APIConnectionViewSet, DashboardFilterViewSet,
     DataPreviewView, ExecuteQueryView, ExportDashboardView,
     ShareDashboardView
@@ -30,3 +35,6 @@ urlpatterns = [
     path('api/dashboards/<int:pk>/export/', ExportDashboardView.as_view(), name='export-dashboard'),
     path('api/dashboards/<int:pk>/share/', ShareDashboardView.as_view(), name='share-dashboard'),
 ]
+
+# ✅ FIX: static must be OUTSIDE urlpatterns and use +
+urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
