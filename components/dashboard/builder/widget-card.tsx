@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useRef, useState } from 'react'
 import { useDashboardBuilder, WidgetPosition } from '@/lib/dashboard-builder-context'
 import { Button } from '@/components/ui/button'
 import { Copy, Trash2, Settings } from 'lucide-react'
@@ -25,6 +26,10 @@ const WIDGET_TYPE_LABELS: Record<string, string> = {
   scatter: 'Scatter Plot',
 }
 const GRID_SIZE = 60
+const MIN_WIDGET_W = 6
+const MIN_WIDGET_H = 4
+const MAX_WIDGET_W = 16
+const MAX_WIDGET_H = 12
 
 function toWidgetConfig(widget: WidgetPosition): WidgetConfig {
   return {
@@ -50,16 +55,68 @@ function toWidgetConfig(widget: WidgetPosition): WidgetConfig {
       columns: Array.isArray(widget.config?.columns) ? widget.config.columns : [],
     },
     layout: { x: widget.x, y: widget.y, w: widget.width, h: widget.height },
+    config: widget.config || {},
   }
 }
 
 export function WidgetCard({ widget, isSelected, onSelect, onEdit }: WidgetCardProps) {
-  const { removeWidget, duplicateWidget } = useDashboardBuilder()
+  const { removeWidget, duplicateWidget, updateLayout } = useDashboardBuilder()
   const widgetConfig = toWidgetConfig(widget)
   const dataset = useDataset({
     datasetId: widget.datasetId,
     columnMapping: widgetConfig.columnMapping,
   })
+  const [isResizing, setIsResizing] = useState(false)
+  const resizeStart = useRef<{
+    startX: number
+    startY: number
+    initialW: number
+    initialH: number
+  } | null>(null)
+
+  useEffect(() => {
+    if (!isResizing) return
+
+    const handleMove = (e: MouseEvent) => {
+      const start = resizeStart.current
+      if (!start) return
+      const deltaX = e.clientX - start.startX
+      const deltaY = e.clientY - start.startY
+      const nextW = Math.max(
+        MIN_WIDGET_W,
+        Math.min(MAX_WIDGET_W, Math.round((start.initialW * GRID_SIZE + deltaX) / GRID_SIZE)),
+      )
+      const nextH = Math.max(
+        MIN_WIDGET_H,
+        Math.min(MAX_WIDGET_H, Math.round((start.initialH * GRID_SIZE + deltaY) / GRID_SIZE)),
+      )
+      updateLayout(widget.id, widget.x, widget.y, nextW, nextH)
+    }
+
+    const handleUp = () => {
+      setIsResizing(false)
+      resizeStart.current = null
+    }
+
+    window.addEventListener('mousemove', handleMove)
+    window.addEventListener('mouseup', handleUp)
+    return () => {
+      window.removeEventListener('mousemove', handleMove)
+      window.removeEventListener('mouseup', handleUp)
+    }
+  }, [isResizing, updateLayout, widget.id, widget.x, widget.y])
+
+  const beginResize = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    e.preventDefault()
+    resizeStart.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      initialW: widget.width,
+      initialH: widget.height,
+    }
+    setIsResizing(true)
+  }
 
   return (
     <div
@@ -75,7 +132,9 @@ export function WidgetCard({ widget, isSelected, onSelect, onEdit }: WidgetCardP
     >
       <div
         onClick={onSelect}
-        className="relative h-full w-full cursor-move overflow-hidden rounded-xl border border-border bg-card/95 shadow-sm transition-colors hover:border-primary"
+        className={`relative h-full w-full overflow-hidden rounded-xl border border-border bg-card/95 shadow-sm transition-colors hover:border-primary ${
+          isResizing ? 'cursor-se-resize' : 'cursor-move'
+        }`}
       >
         <UnifiedWidgetRenderer
           widget={widgetConfig}
@@ -124,6 +183,16 @@ export function WidgetCard({ widget, isSelected, onSelect, onEdit }: WidgetCardP
               <Trash2 className="w-3 h-3" />
             </Button>
           </div>
+        )}
+
+        {isSelected && (
+          <button
+            type="button"
+            onMouseDown={beginResize}
+            className="absolute bottom-1 right-1 h-4 w-4 cursor-se-resize rounded-sm border border-border/80 bg-muted/80 hover:bg-muted"
+            title="Resize widget"
+            aria-label="Resize widget"
+          />
         )}
       </div>
     </div>

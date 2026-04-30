@@ -231,6 +231,21 @@ export function WidgetConfigurator({ datasets, onClose }: WidgetConfiguratorProp
               className="h-10 w-20 cursor-pointer"
             />
           </Field>
+          <Field>
+            <FieldLabel htmlFor="colorMode">Color Mode</FieldLabel>
+            <Select
+              value={formData.config?.colorMode || 'dynamic'}
+              onValueChange={(v) => handleConfigChange('colorMode', v)}
+            >
+              <SelectTrigger className="bg-background border-input">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-card border-border">
+                <SelectItem value="dynamic">Dynamic by data</SelectItem>
+                <SelectItem value="custom">Custom color</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
         </FieldGroup>
 
         {/* X-Axis (for charts) */}

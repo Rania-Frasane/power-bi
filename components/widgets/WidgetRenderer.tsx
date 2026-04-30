@@ -38,6 +38,18 @@ function buildPreviewData() {
   ] as Record<string, unknown>[]
 }
 
+function hexToRgb(hex: string): [number, number, number] {
+  const clean = hex.replace('#', '')
+  const full = clean.length === 3 ? clean.split('').map((c) => c + c).join('') : clean
+  const num = Number.parseInt(full, 16)
+  return [(num >> 16) & 255, (num >> 8) & 255, num & 255]
+}
+
+function withAlpha(hex: string, alpha: number): string {
+  const [r, g, b] = hexToRgb(hex)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
 export function WidgetRenderer({
   widget,
   isEditMode,
@@ -92,8 +104,41 @@ export function WidgetRenderer({
     return { x, y, label, value }
   })()
 
+  const widgetAccent: Record<string, string> = {
+    bar: 'border-l-4 border-l-blue-500',
+    line: 'border-l-4 border-l-cyan-500',
+    pie: 'border-l-4 border-l-violet-500',
+    table: 'border-l-4 border-l-slate-500',
+    scatter: 'border-l-4 border-l-fuchsia-500',
+    heatmap: 'border-l-4 border-l-amber-500',
+    kpi: 'border-l-4 border-l-emerald-500',
+    metric: 'border-l-4 border-l-emerald-500',
+  }
+  const color = (widget.config?.color as string) || '#3b82f6'
+  const colorMode = ((widget.config?.colorMode as string) || 'dynamic') as
+    | 'dynamic'
+    | 'custom'
+
+  const kpiValue =
+    widget.type === 'kpi' || widget.type === 'metric' ? effectiveData.length : 0
+  const kpiTone =
+    kpiValue > 500
+      ? 'text-emerald-600'
+      : kpiValue > 100
+        ? 'text-amber-600'
+        : 'text-rose-600'
+
   return (
-    <Card className="relative h-full overflow-hidden border-border bg-card">
+    <Card
+      className={`relative h-full overflow-hidden border-border bg-card ${
+        colorMode === 'custom' ? '' : widgetAccent[widget.type] || ''
+      }`}
+      style={
+        colorMode === 'custom'
+          ? { borderLeft: `4px solid ${color}` }
+          : undefined
+      }
+    >
       {isEditMode ? (
         <div className="absolute right-2 top-2 z-10 flex gap-1 rounded bg-background/80 p-1">
           <Button size="sm" variant="outline" onClick={onOpenConfig}>
@@ -137,6 +182,8 @@ export function WidgetRenderer({
               data={effectiveData}
               columnMapping={resolvedMapping}
               title={widget.title}
+              color={color}
+              colorMode={colorMode}
             />
           ) : widget.type === 'scatter' ? (
             <ResponsiveContainer width="100%" height="100%">
@@ -145,7 +192,7 @@ export function WidgetRenderer({
                 <XAxis dataKey={resolvedMapping.x} name={resolvedMapping.x} />
                 <YAxis dataKey={resolvedMapping.y} name={resolvedMapping.y} />
                 <Tooltip />
-                <Scatter data={effectiveData} fill="#8b5cf6" />
+                <Scatter data={effectiveData} fill={colorMode === 'custom' ? color : '#8b5cf6'} />
               </ScatterChart>
             </ResponsiveContainer>
           ) : widget.type === 'kpi' || widget.type === 'metric' ? (
@@ -154,8 +201,11 @@ export function WidgetRenderer({
                 <p className="text-sm text-muted-foreground">
                   {resolvedMapping.y || resolvedMapping.value || 'Metric'}
                 </p>
-                <p className="text-4xl font-bold text-foreground">
-                  {effectiveData.length.toLocaleString()}
+                <p
+                  className={`text-4xl font-bold ${colorMode === 'custom' ? '' : kpiTone}`}
+                  style={colorMode === 'custom' ? { color } : undefined}
+                >
+                  {kpiValue.toLocaleString()}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">Records analyzed</p>
               </div>
@@ -169,7 +219,12 @@ export function WidgetRenderer({
                   <div
                     key={idx}
                     className="flex h-10 items-center justify-center rounded text-[10px]"
-                    style={{ backgroundColor: `rgba(59,130,246,${alpha})` }}
+                    style={{
+                      backgroundColor:
+                        colorMode === 'custom'
+                          ? withAlpha(color, alpha)
+                          : `rgba(59,130,246,${alpha})`,
+                    }}
                     title={`${String(row[resolvedMapping.x || ''] ?? '')} / ${String(row[resolvedMapping.y || ''] ?? '')}: ${raw}`}
                   >
                     {raw.toFixed(0)}
