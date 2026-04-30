@@ -32,6 +32,11 @@ class Dataset(models.Model):
     
     # Schema and column metadata
     schema = models.JSONField(default=dict, help_text='Column names and types')
+    analysis = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text='Profiling output: columns, metrics, charts, insights',
+    )
     row_count = models.IntegerField(default=0)
     
     # Data cache

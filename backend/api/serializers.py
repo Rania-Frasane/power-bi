@@ -52,10 +52,13 @@ class DatasetSerializer(serializers.ModelSerializer):
         model = Dataset
         fields = [
             'id', 'name', 'description', 'source_type', 'file',
-            'connection', 'query', 'schema', 'row_count',
+            'connection', 'query', 'schema', 'analysis', 'row_count',
             'last_refreshed', 'refresh_interval', 'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'schema', 'row_count', 'last_refreshed', 'created_at', 'updated_at']
+        read_only_fields = [
+            'id', 'schema', 'analysis', 'row_count', 'last_refreshed',
+            'created_at', 'updated_at',
+        ]
 
 
 class WidgetSerializer(serializers.ModelSerializer):
