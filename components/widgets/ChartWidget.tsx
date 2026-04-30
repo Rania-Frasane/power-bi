@@ -25,15 +25,18 @@ type Props = {
 }
 
 export function ChartWidget({ type, data, columnMapping }: Props) {
+  const xLabel = columnMapping.x || 'Category'
+  const yLabel = columnMapping.y || 'Value'
+
   if (type === 'bar') {
     return (
-      <ResponsiveContainer width="100%" height={300}>
-        <BarChart data={data}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey={columnMapping.x} />
-          <YAxis />
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data} margin={{ top: 8, right: 12, left: 2, bottom: 24 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+          <XAxis dataKey={columnMapping.x} tick={{ fontSize: 11 }} label={{ value: xLabel, position: 'insideBottom', offset: -8 }} />
+          <YAxis tick={{ fontSize: 11 }} label={{ value: yLabel, angle: -90, position: 'insideLeft' }} />
           <Tooltip />
-          <Bar dataKey={columnMapping.y} fill={COLORS[0]} />
+          <Bar dataKey={columnMapping.y} fill={COLORS[0]} radius={[4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     )
@@ -41,20 +44,20 @@ export function ChartWidget({ type, data, columnMapping }: Props) {
 
   if (type === 'line') {
     return (
-      <ResponsiveContainer width="100%" height={300}>
-        <LineChart data={data}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey={columnMapping.x} />
-          <YAxis />
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data} margin={{ top: 8, right: 12, left: 2, bottom: 24 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+          <XAxis dataKey={columnMapping.x} tick={{ fontSize: 11 }} label={{ value: xLabel, position: 'insideBottom', offset: -8 }} />
+          <YAxis tick={{ fontSize: 11 }} label={{ value: yLabel, angle: -90, position: 'insideLeft' }} />
           <Tooltip />
-          <Line type="monotone" dataKey={columnMapping.y} stroke={COLORS[0]} />
+          <Line type="monotone" dataKey={columnMapping.y} stroke={COLORS[0]} strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 4 }} />
         </LineChart>
       </ResponsiveContainer>
     )
   }
 
   return (
-    <ResponsiveContainer width="100%" height={300}>
+    <ResponsiveContainer width="100%" height="100%">
       <PieChart>
         <Tooltip />
         <Pie

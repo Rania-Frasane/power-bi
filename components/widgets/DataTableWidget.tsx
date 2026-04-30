@@ -17,17 +17,25 @@ export function DataTableWidget({ data, columns }: Props) {
   const [page, setPage] = useState(1)
   const PAGE_SIZE = 10
 
-  const visibleColumns = columns.length > 0 ? columns : Object.keys(data[0] ?? {})
+  const sourceData =
+    data.length > 0
+      ? data
+      : [
+          { id: 1, city: 'Casablanca', property_type: 'Apartment', price: 145000, area_m2: 94 },
+          { id: 2, city: 'Rabat', property_type: 'Villa', price: 320000, area_m2: 210 },
+          { id: 3, city: 'Marrakech', property_type: 'Studio', price: 89000, area_m2: 46 },
+        ]
+  const visibleColumns = columns.length > 0 ? columns : Object.keys(sourceData[0] ?? {})
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return data
-    return data.filter((row) =>
+    if (!q) return sourceData
+    return sourceData.filter((row) =>
       visibleColumns.some((col) =>
         String(row[col] ?? '').toLowerCase().includes(q),
       ),
     )
-  }, [data, visibleColumns, query])
+  }, [sourceData, visibleColumns, query])
 
   const sorted = useMemo(() => {
     if (!sortBy) return filtered
@@ -49,6 +57,8 @@ export function DataTableWidget({ data, columns }: Props) {
     safePage * PAGE_SIZE,
   )
 
+  const activeColumns = visibleColumns
+
   return (
     <div className="space-y-2">
       <Input
@@ -60,11 +70,11 @@ export function DataTableWidget({ data, columns }: Props) {
         placeholder="Search..."
         className="h-8"
       />
-      <div className="max-h-[300px] overflow-auto rounded border border-border">
+      <div className="max-h-[300px] overflow-auto rounded-md border border-border bg-background">
         <table className="w-full border-collapse text-sm">
           <thead className="sticky top-0 bg-muted">
             <tr>
-              {visibleColumns.map((col) => (
+              {activeColumns.map((col) => (
                 <th
                   key={col}
                   className="cursor-pointer border-b border-border px-2 py-1 text-left"
@@ -86,7 +96,7 @@ export function DataTableWidget({ data, columns }: Props) {
           <tbody>
             {pageRows.map((row, idx) => (
               <tr key={idx} className="border-b border-border/60">
-                {visibleColumns.map((col) => {
+                {activeColumns.map((col) => {
                   const raw = row[col]
                   const numeric = typeof raw === 'number'
                   return (
