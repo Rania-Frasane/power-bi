@@ -19,6 +19,12 @@ interface APIConnection {
   created_at: string
 }
 
+function stableDateTimeLabel(iso: string): string {
+  if (!iso) return 'N/A'
+  // Stable format to avoid SSR/client locale mismatches.
+  return iso.replace('T', ' ').slice(0, 19)
+}
+
 export default function ConnectionsPage() {
   const { accessToken } = useAuth()
   const [connections, setConnections] = useState<APIConnection[]>([])
@@ -117,7 +123,7 @@ export default function ConnectionsPage() {
                 </CardHeader>
                 <CardContent>
                   <p className="text-xs text-muted-foreground">
-                    Created {new Date(connection.created_at).toLocaleString()}
+                    Created {stableDateTimeLabel(connection.created_at)}
                   </p>
                 </CardContent>
               </Card>
