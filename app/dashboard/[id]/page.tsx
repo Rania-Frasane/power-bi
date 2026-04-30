@@ -50,7 +50,7 @@ function DashboardViewerContent() {
   const params = useParams()
   const dashboardId = params.id as string
   const { accessToken } = useAuth()
-  const { setWidgetData, setWidgetLoading, getFilteredData, updateFilter } = useDashboardViewer()
+  const { setWidgetData, setWidgetLoading, getFilteredData, updateFilter, loadingWidgets } = useDashboardViewer()
 
   const [dashboard, setDashboard] = useState<DashboardData | null>(null)
   const [datasets, setDatasets] = useState<Record<number, any[]>>({})
@@ -58,6 +58,7 @@ function DashboardViewerContent() {
   const [filters, setFilters] = useState<FilterValue[]>([])
   const [showExportModal, setShowExportModal] = useState(false)
   const [showSharingDialog, setShowSharingDialog] = useState(false)
+  const [datasetErrors, setDatasetErrors] = useState<Record<number, string>>({})
 
   useEffect(() => {
     if (!accessToken || !dashboardId) return
@@ -80,6 +81,7 @@ function DashboardViewerContent() {
           } catch (error) {
             console.error(`Failed to fetch dataset ${datasetId}:`, error)
             datasetMap[datasetId] = []
+            setDatasetErrors((prev) => ({ ...prev, [datasetId]: 'Failed to load dataset' }))
           } finally {
             setWidgetLoading(datasetId, false)
           }
@@ -147,6 +149,7 @@ function DashboardViewerContent() {
           setWidgetData(datasetId, dataRes.data || [])
         } catch (error) {
           console.error(`Failed to refresh dataset ${datasetId}:`, error)
+          setDatasetErrors((prev) => ({ ...prev, [datasetId]: 'Failed to refresh dataset' }))
         } finally {
           setWidgetLoading(datasetId, false)
         }
@@ -264,7 +267,8 @@ function DashboardViewerContent() {
                       config: widget.config || {},
                     }}
                     data={filteredData}
-                    isLoading={false}
+                    isLoading={loadingWidgets.has(datasetId)}
+                    error={datasetErrors[datasetId] || null}
                   />
                 </div>
               )
