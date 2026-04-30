@@ -60,14 +60,14 @@ export function DashboardCanvas({ onWidgetEdit, canvasWidth = 1200, canvasHeight
   }, [draggingWidget, dragOffset, widgets])
 
   return (
-    <Card className="bg-muted/20 border-border relative overflow-hidden flex-1">
+    <Card className="relative flex-1 overflow-hidden rounded-xl border-border bg-card shadow-sm">
       <div
         ref={canvasRef}
-        className="relative w-full h-full bg-background"
+        className="relative h-full w-full bg-background"
         style={{
           backgroundImage: `
-            linear-gradient(to right, #e5e7eb 1px, transparent 1px),
-            linear-gradient(to bottom, #e5e7eb 1px, transparent 1px)
+            linear-gradient(to right, hsl(var(--border) / 0.55) 1px, transparent 1px),
+            linear-gradient(to bottom, hsl(var(--border) / 0.55) 1px, transparent 1px)
           `,
           backgroundSize: '50px 50px',
         }}
@@ -95,9 +95,12 @@ export function DashboardCanvas({ onWidgetEdit, canvasWidth = 1200, canvasHeight
         {/* Empty state */}
         {widgets.length === 0 && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="text-center">
-              <p className="text-muted-foreground">
+            <div className="rounded-lg border border-dashed border-border bg-background/80 px-6 py-5 text-center shadow-sm">
+              <p className="font-medium text-foreground">
                 No widgets yet. Add one from the toolbar to get started.
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Tip: start with KPI + Line + Bar for a balanced analytics view.
               </p>
             </div>
           </div>
@@ -105,7 +108,7 @@ export function DashboardCanvas({ onWidgetEdit, canvasWidth = 1200, canvasHeight
 
         {/* Coordinates display */}
         {selectedWidgetId && (
-          <div className="absolute top-4 right-4 bg-card border border-border rounded px-3 py-2 text-xs text-muted-foreground">
+          <div className="absolute right-4 top-4 rounded-md border border-border bg-card/90 px-3 py-2 text-xs text-muted-foreground shadow-sm backdrop-blur">
             {(() => {
               const w = widgets.find((x) => x.id === selectedWidgetId)
               return w

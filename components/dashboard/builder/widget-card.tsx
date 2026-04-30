@@ -63,7 +63,7 @@ export function WidgetCard({ widget, isSelected, onSelect, onEdit }: WidgetCardP
   return (
     <div
       className={`absolute transition-all ${
-        isSelected ? 'ring-2 ring-primary ring-offset-2' : 'hover:ring-2 hover:ring-muted'
+        isSelected ? 'ring-2 ring-primary/80 ring-offset-2' : 'hover:ring-2 hover:ring-muted'
       }`}
       style={{
         left: `${widget.x * 50}px`,
@@ -74,7 +74,7 @@ export function WidgetCard({ widget, isSelected, onSelect, onEdit }: WidgetCardP
     >
       <div
         onClick={onSelect}
-        className="relative h-full w-full cursor-move overflow-hidden rounded-lg border border-border bg-card hover:border-primary transition-colors"
+        className="relative h-full w-full cursor-move overflow-hidden rounded-xl border border-border bg-card/95 shadow-sm transition-colors hover:border-primary"
       >
         <UnifiedWidgetRenderer
           widget={widgetConfig}
@@ -85,7 +85,7 @@ export function WidgetCard({ widget, isSelected, onSelect, onEdit }: WidgetCardP
         />
 
         {isSelected && (
-          <div className="absolute bottom-0 left-0 right-0 flex gap-1 border-t border-border bg-muted p-2">
+          <div className="absolute bottom-0 left-0 right-0 flex gap-1 border-t border-border bg-background/95 p-2 backdrop-blur">
             <Button
               size="sm"
               variant="ghost"
