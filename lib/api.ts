@@ -8,9 +8,63 @@ interface ApiRequestOptions extends RequestInit {
   token?: string
 }
 
+function normalizeToken(token: string): string {
+  const trimmed = token.trim()
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1)
+  }
+  return trimmed
+}
+
+function clearLocalAuth() {
+  if (typeof window === 'undefined') return
+  localStorage.removeItem('accessToken')
+  localStorage.removeItem('refreshToken')
+  localStorage.removeItem('user')
+}
+
+async function tryRefreshToken(): Promise<string | null> {
+  if (typeof window === 'undefined') return null
+  const rawRefreshToken = localStorage.getItem('refreshToken')
+  if (!rawRefreshToken) return null
+
+  const refresh = normalizeToken(rawRefreshToken)
+  if (!refresh) return null
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/token/refresh/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh }),
+    })
+
+    if (!response.ok) {
+      clearLocalAuth()
+      return null
+    }
+
+    const payload = await response.json().catch(() => null)
+    const nextAccess = payload?.access ? normalizeToken(String(payload.access)) : ''
+    if (!nextAccess) {
+      clearLocalAuth()
+      return null
+    }
+
+    localStorage.setItem('accessToken', nextAccess)
+    return nextAccess
+  } catch {
+    clearLocalAuth()
+    return null
+  }
+}
+
 export async function apiRequest(
   endpoint: string,
-  options: ApiRequestOptions = {}
+  options: ApiRequestOptions = {},
+  hasRetried = false
 ) {
   const { token, ...init } = options
 
@@ -19,8 +73,9 @@ export async function apiRequest(
     ...init.headers,
   }
 
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`
+  const normalizedToken = token ? normalizeToken(token) : ''
+  if (normalizedToken) {
+    headers['Authorization'] = `Bearer ${normalizedToken}`
   }
 
   const url = `${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`
@@ -30,12 +85,22 @@ export async function apiRequest(
     headers,
   })
 
-  if (response.status === 401) {
-    // Token expired, clear auth
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('accessToken')
-      localStorage.removeItem('user')
+  if (response.status === 401 && !hasRetried && endpoint !== '/api/token/refresh/') {
+    const nextToken = await tryRefreshToken()
+    if (nextToken) {
+      return apiRequest(
+        endpoint,
+        {
+          ...options,
+          token: nextToken,
+        },
+        true,
+      )
     }
+  }
+
+  if (response.status === 401) {
+    clearLocalAuth()
   }
 
   if (!response.ok) {

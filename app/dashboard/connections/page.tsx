@@ -1,12 +1,15 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import Link from 'next/link'
 import { useAuth } from '@/lib/auth-context'
 import { apiGet } from '@/lib/api'
+import { parseListResponse } from '@/lib/list-api'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Empty } from '@/components/ui/empty'
 import { Plus, Cable } from 'lucide-react'
+import { toast } from 'sonner'
 
 interface APIConnection {
   id: number
@@ -21,43 +24,60 @@ export default function ConnectionsPage() {
   const [connections, setConnections] = useState<APIConnection[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
-  useEffect(() => {
-    if (!accessToken) return
-
-    const fetchConnections = async () => {
-      try {
-        const data = await apiGet('/api/connections/', accessToken)
-        setConnections(data.results || [])
-      } catch (error) {
-        console.error('Failed to fetch connections:', error)
-      } finally {
-        setIsLoading(false)
-      }
+  const load = useCallback(async () => {
+    if (!accessToken) {
+      setIsLoading(false)
+      setConnections([])
+      return
     }
-
-    fetchConnections()
+    setIsLoading(true)
+    try {
+      const data = await apiGet('/api/connections/', accessToken)
+      setConnections(parseListResponse<APIConnection>(data))
+    } catch (error) {
+      console.error('Failed to fetch connections:', error)
+      toast.error('Could not load connections')
+      setConnections([])
+    } finally {
+      setIsLoading(false)
+    }
   }, [accessToken])
 
+  useEffect(() => {
+    load()
+  }, [load])
+
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
-      <div className="flex-1 overflow-auto p-6">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="flex-1 overflow-auto p-4 md:p-6">
         <div className="mb-8">
-          <div className="flex items-center justify-between mb-2">
-            <h1 className="text-3xl font-bold text-foreground">Data Connections</h1>
-            <Button className="bg-primary text-primary-foreground hover:bg-primary/90 gap-2">
-              <Plus className="w-4 h-4" />
-              New Connection
+          <div className="mb-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-foreground md:text-3xl">
+                Data connections
+              </h1>
+              <p className="text-muted-foreground">
+                Databases, APIs, and other external sources (SQL / REST)
+              </p>
+            </div>
+            <Button
+              asChild
+              className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              <Link href="/dashboard/connections/new">
+                <Plus className="h-4 w-4" />
+                New connection
+              </Link>
             </Button>
           </div>
-          <p className="text-muted-foreground">Connect to databases, APIs, and other data sources</p>
         </div>
 
         {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             {[1, 2].map((i) => (
               <div
                 key={i}
-                className="h-32 bg-card border border-border rounded-lg animate-pulse"
+                className="h-32 animate-pulse rounded-lg border border-border bg-card"
               />
             ))}
           </div>
@@ -65,31 +85,41 @@ export default function ConnectionsPage() {
           <Empty
             icon={Cable}
             title="No connections yet"
-            description="Create a connection to start accessing external data sources"
+            description="Create a connection to access external data alongside file uploads"
             action={
-              <Button className="bg-primary text-primary-foreground hover:bg-primary/90 gap-2">
-                <Plus className="w-4 h-4" />
-                New Connection
+              <Button asChild className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90">
+                <Link href="/dashboard/connections/new">
+                  <Plus className="h-4 w-4" />
+                  New connection
+                </Link>
               </Button>
             }
           />
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             {connections.map((connection) => (
-              <Card key={connection.id} className="bg-card border-border">
+              <Card key={connection.id} className="border-border bg-card">
                 <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <CardTitle>{connection.name}</CardTitle>
-                      <CardDescription>{connection.connection_type}</CardDescription>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <CardTitle className="truncate">{connection.name}</CardTitle>
+                      <CardDescription className="mt-1 uppercase">
+                        {connection.connection_type}
+                      </CardDescription>
                     </div>
-                    <div
-                      className={`w-3 h-3 rounded-full ${
-                        connection.is_active ? 'bg-green-500' : 'bg-gray-500'
+                    <span
+                      className={`mt-1 h-3 w-3 shrink-0 rounded-full ${
+                        connection.is_active ? 'bg-green-500' : 'bg-muted-foreground/50'
                       }`}
+                      title={connection.is_active ? 'Active' : 'Inactive'}
                     />
                   </div>
                 </CardHeader>
+                <CardContent>
+                  <p className="text-xs text-muted-foreground">
+                    Created {new Date(connection.created_at).toLocaleString()}
+                  </p>
+                </CardContent>
               </Card>
             ))}
           </div>

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { apiGet } from '@/lib/api'
+import { parseListResponse } from '@/lib/list-api'
 import { Button } from '@/components/ui/button'
 import { Empty } from '@/components/ui/empty'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -30,7 +31,7 @@ export default function DashboardsPage() {
     const fetchDashboards = async () => {
       try {
         const data = await apiGet('/api/dashboards/', accessToken)
-        setDashboards(data.results || [])
+        setDashboards(parseListResponse<Dashboard>(data))
       } catch (error) {
         console.error('Failed to fetch dashboards:', error)
       } finally {
@@ -42,8 +43,8 @@ export default function DashboardsPage() {
   }, [accessToken])
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
-      <div className="flex-1 overflow-auto p-6">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="flex-1 overflow-auto p-4 md:p-6">
         <div className="mb-8">
           <div className="flex items-center justify-between mb-2">
             <h1 className="text-3xl font-bold text-foreground">Dashboards</h1>

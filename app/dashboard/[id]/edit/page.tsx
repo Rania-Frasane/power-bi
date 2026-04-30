@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
-import { apiPost, apiGet, apiPut } from '@/lib/api'
+import { apiPost, apiGet, apiPut, apiDelete } from '@/lib/api'
+import { parseListResponse } from '@/lib/list-api'
 import { DashboardBuilderProvider, useDashboardBuilder } from '@/lib/dashboard-builder-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -46,7 +47,7 @@ function DashboardEditContent() {
   const params = useParams()
   const dashboardId = params.id as string
   const { accessToken } = useAuth()
-  const { widgets, setDashboard, addWidget } = useDashboardBuilder()
+  const { widgets, setDashboard, addWidget, resetLayout } = useDashboardBuilder()
   
   const [datasets, setDatasets] = useState<Dataset[]>([])
   const [dashboard, setDashboardData] = useState<DashboardData | null>(null)
@@ -69,9 +70,10 @@ function DashboardEditContent() {
         setDashboardData(dashboardRes)
         setName(dashboardRes.name)
         setDescription(dashboardRes.description)
-        setDatasets(datasetsRes.results || [])
+        setDatasets(parseListResponse<Dataset>(datasetsRes))
         
         setDashboard(dashboardRes.id, dashboardRes.name, dashboardRes.description)
+        resetLayout()
 
         // Load widgets
         if (dashboardRes.widgets && dashboardRes.widgets.length > 0) {
@@ -98,7 +100,7 @@ function DashboardEditContent() {
     }
 
     fetchData()
-  }, [accessToken, dashboardId, setDashboard, addWidget, router])
+  }, [accessToken, dashboardId, setDashboard, addWidget, resetLayout, router])
 
   const handleSaveDashboard = async () => {
     if (!name.trim()) {
@@ -119,7 +121,33 @@ function DashboardEditContent() {
         accessToken
       )
 
-      // TODO: Update widgets - would need to sync widget changes
+      const allWidgetsRes = await apiGet('/api/widgets/', accessToken)
+      const existingWidgets = parseListResponse<any>(allWidgetsRes).filter(
+        (w) => Number(w.dashboard) === Number(dashboardId),
+      )
+
+      for (const w of existingWidgets) {
+        await apiDelete(`/api/widgets/${w.id}/`, accessToken)
+      }
+
+      for (const widget of widgets) {
+        if (!widget.datasetId) continue
+        await apiPost(
+          '/api/widgets/',
+          {
+            dashboard: Number(dashboardId),
+            dataset: widget.datasetId,
+            name: widget.name,
+            widget_type: widget.type,
+            config: widget.config || {},
+            position_x: widget.x,
+            position_y: widget.y,
+            width: widget.width,
+            height: widget.height,
+          },
+          accessToken,
+        )
+      }
       
       toast.success('Dashboard updated successfully!')
       router.push(`/dashboard/${dashboardId}`)

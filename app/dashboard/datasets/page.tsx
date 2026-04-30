@@ -1,67 +1,383 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useCallback, useMemo, useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { apiGet } from '@/lib/api'
+import { parseListResponse } from '@/lib/list-api'
+import { fetchDatasetAnalysesMap } from '@/lib/fetch-dataset-analyses'
+import {
+  buildDatasetPortfolioHtml,
+  buildSingleDatasetReportHtml,
+  downloadHtmlFile,
+  openHistoryPrintWindow,
+  type DatasetHistoryRow,
+} from '@/lib/dataset-history-export'
+import { AutoInsightsPanelLoader } from '@/components/dashboard/auto-insights-panel'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
 import { Empty } from '@/components/ui/empty'
-import { Plus, Upload, Database } from 'lucide-react'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Tooltip,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+  ScatterChart,
+  Scatter,
+} from 'recharts'
+import { ChevronDown, FileDown, Printer, Upload, Database } from 'lucide-react'
 import Link from 'next/link'
+import { toast } from 'sonner'
 
-interface Dataset {
-  id: number
-  name: string
-  description: string
-  source_type: string
-  row_count: number
-  created_at: string
+interface Dataset extends DatasetHistoryRow {}
+interface DatasetPreviewResponse {
+  sample_data?: Record<string, unknown>[]
+}
+
+const PIE_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4']
+
+type CleaningInsight = {
+  column: string
+  missingPct: number
+  uniqueCount: number
+}
+
+function sortDatasetsByDate(datasets: Dataset[]): Dataset[] {
+  return [...datasets].sort(
+    (a, b) =>
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  )
 }
 
 export default function DatasetsPage() {
   const { accessToken } = useAuth()
   const [datasets, setDatasets] = useState<Dataset[]>([])
+  const [previewByDataset, setPreviewByDataset] = useState<Record<number, Record<string, unknown>[]>>({})
   const [isLoading, setIsLoading] = useState(true)
+  const [exporting, setExporting] = useState(false)
+  const [insightsOpenForId, setInsightsOpenForId] = useState<number | null>(null)
+
+  const sortedHistory = useMemo(
+    () => sortDatasetsByDate(datasets),
+    [datasets],
+  )
+
+  const fetchDatasets = useCallback(async () => {
+    if (!accessToken) return
+    setIsLoading(true)
+    try {
+      const data = await apiGet('/api/datasets/', accessToken)
+      setDatasets(parseListResponse<Dataset>(data))
+    } catch (error) {
+      console.error('Failed to fetch datasets:', error)
+      toast.error('Could not load datasets')
+      setDatasets([])
+    } finally {
+      setIsLoading(false)
+    }
+  }, [accessToken])
 
   useEffect(() => {
-    if (!accessToken) return
+    if (!accessToken) {
+      setIsLoading(false)
+      return
+    }
+    fetchDatasets()
+  }, [accessToken, fetchDatasets])
 
-    const fetchDatasets = async () => {
-      try {
-        const data = await apiGet('/api/datasets/', accessToken)
-        setDatasets(data.results || [])
-      } catch (error) {
-        console.error('Failed to fetch datasets:', error)
-      } finally {
-        setIsLoading(false)
+  useEffect(() => {
+    if (typeof window === 'undefined' || datasets.length === 0) return
+    const applyHash = () => {
+      const m = /^#dataset-(\d+)$/.exec(window.location.hash)
+      if (!m) return
+      const id = Number(m[1])
+      if (!Number.isFinite(id) || !datasets.some((d) => d.id === id)) return
+      setInsightsOpenForId(id)
+      window.requestAnimationFrame(() => {
+        document
+          .getElementById(`dataset-${id}`)
+          ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      })
+    }
+    applyHash()
+    window.addEventListener('hashchange', applyHash)
+    return () => window.removeEventListener('hashchange', applyHash)
+  }, [datasets])
+
+  useEffect(() => {
+    if (!accessToken || sortedHistory.length === 0) return
+    let cancelled = false
+    ;(async () => {
+      const entries = await Promise.all(
+        sortedHistory.map(async (dataset) => {
+          try {
+            const preview = (await apiGet(
+              `/api/datasets/${dataset.id}/preview/`,
+              accessToken,
+            )) as DatasetPreviewResponse
+            return [dataset.id, Array.isArray(preview.sample_data) ? preview.sample_data : []] as const
+          } catch {
+            return [dataset.id, []] as const
+          }
+        }),
+      )
+      if (cancelled) return
+      setPreviewByDataset(Object.fromEntries(entries))
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [accessToken, sortedHistory])
+
+  const getChartData = useCallback((rows: Record<string, unknown>[]) => {
+    if (!rows.length) {
+      return {
+        numericKeys: [] as string[],
+        categoricalKeys: [] as string[],
+        lineBarData: [] as Record<string, unknown>[],
+        pieData: [] as { name: string; value: number }[],
+        scatterData: [] as Record<string, number | string>[],
       }
     }
 
-    fetchDatasets()
-  }, [accessToken])
+    const keys = Object.keys(rows[0] ?? {})
+    const numericKeys = keys.filter((k) => rows.some((r) => typeof r[k] === 'number'))
+    const categoricalKeys = keys.filter((k) => !numericKeys.includes(k))
+
+    const categoryKey = categoricalKeys[0] ?? keys[0]
+    const valueKey = numericKeys[0]
+    const secondValueKey = numericKeys[1] ?? numericKeys[0]
+
+    const lineBarData = rows
+      .slice(0, 15)
+      .map((row, index) => ({
+        index: index + 1,
+        category: String(row[categoryKey] ?? `Item ${index + 1}`),
+        value: Number(row[valueKey] ?? 0),
+        value2: Number(row[secondValueKey] ?? 0),
+      }))
+
+    const pieAgg = new Map<string, number>()
+    for (const row of rows.slice(0, 200)) {
+      const key = String(row[categoryKey] ?? 'Other')
+      const current = pieAgg.get(key) ?? 0
+      pieAgg.set(key, current + Number(row[valueKey] ?? 1))
+    }
+    const pieData = Array.from(pieAgg.entries())
+      .slice(0, 6)
+      .map(([name, value]) => ({ name, value }))
+
+    const scatterData = rows.slice(0, 30).map((row, index) => ({
+      x: Number(row[valueKey] ?? index + 1),
+      y: Number(row[secondValueKey] ?? index + 1),
+      z: String(row[categoryKey] ?? `P${index + 1}`),
+    }))
+
+    return { numericKeys, categoricalKeys, lineBarData, pieData, scatterData }
+  }, [])
+
+  const runPortfolioExport = useCallback(
+    async (kind: 'html' | 'pdf') => {
+      if (!accessToken || sortedHistory.length === 0) return
+      setExporting(true)
+      try {
+        toast.message('Loading analysis for all datasets…')
+        const map = await fetchDatasetAnalysesMap(
+          accessToken,
+          sortedHistory.map((d) => d.id),
+        )
+        const origin =
+          typeof window !== 'undefined' ? window.location.origin : ''
+        const html = buildDatasetPortfolioHtml(sortedHistory, map, {
+          appOrigin: origin || 'http://localhost:3000',
+          title: 'Dataset portfolio — history, insights & chart tables',
+        })
+        const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
+        if (kind === 'html') {
+          downloadHtmlFile(`dataset-portfolio-${stamp}.html`, html)
+          toast.success('Portfolio HTML downloaded (insights, tables, share links)')
+        } else {
+          openHistoryPrintWindow(html)
+          toast.message('Print dialog opened — save as PDF from there')
+        }
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : 'Export failed')
+      } finally {
+        setExporting(false)
+      }
+    },
+    [accessToken, sortedHistory],
+  )
+
+  const runSingleDatasetExport = useCallback(
+    async (dataset: Dataset, kind: 'html' | 'pdf') => {
+      if (!accessToken) return
+      try {
+        const analysis = await apiGet(`/api/datasets/${dataset.id}/analysis/`, accessToken).catch(
+          () => null,
+        )
+        const origin = typeof window !== 'undefined' ? window.location.origin : ''
+        const html = buildSingleDatasetReportHtml(dataset, analysis, {
+          appOrigin: origin || 'http://localhost:3000',
+          title: `Dataset report — ${dataset.name}`,
+        })
+        const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
+        const safeName = dataset.name.toLowerCase().replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '')
+        if (kind === 'html') {
+          downloadHtmlFile(`${safeName || 'dataset'}-${dataset.id}-${stamp}.html`, html)
+          toast.success(`HTML exported for "${dataset.name}"`)
+        } else {
+          openHistoryPrintWindow(html)
+          toast.message(`Print dialog opened for "${dataset.name}" (save as PDF)`)
+        }
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : 'Dataset export failed')
+      }
+    },
+    [accessToken],
+  )
+
+  const realEstateAnalysisIdeas = useMemo(() => {
+    const allCols = new Set<string>()
+    Object.values(previewByDataset).forEach((rows) => {
+      if (rows.length > 0) {
+        Object.keys(rows[0]).forEach((k) => allCols.add(k))
+      }
+    })
+    const cols = Array.from(allCols)
+    const has = (patterns: string[]) =>
+      cols.some((c) => patterns.some((p) => c.toLowerCase().includes(p)))
+
+    return [
+      {
+        title: 'Pricing & valuation',
+        items: [
+          has(['price']) ? 'Distribution des prix (mean/median/p90) par zone.' : 'Comparer les valeurs cibles par segment.',
+          has(['surface', 'area', 'sqm']) ? 'Prix au m2 par ville/quartier.' : 'Benchmark par catégorie de bien.',
+          'Détection d’outliers (biens sous/surévalués).',
+        ],
+      },
+      {
+        title: 'Features impact',
+        items: [
+          has(['rooms', 'bed', 'bath']) ? 'Impact rooms/bedrooms/bathrooms sur le prix.' : 'Impact des caractéristiques structurelles sur le prix.',
+          has(['garage', 'parking']) ? 'Prime de prix liée au garage/parking.' : 'Comparer options premium vs standard.',
+          has(['condition', 'quality']) ? 'Effet de la qualité/condition sur la valorisation.' : 'Effet des attributs qualitatifs.',
+        ],
+      },
+      {
+        title: 'Market trends',
+        items: [
+          has(['date', 'year', 'month']) ? 'Évolution temporelle des prix (MoM/YoY).' : 'Analyser les tendances par période disponible.',
+          'Volume des transactions par segment.',
+          'Top zones en croissance vs zones en baisse.',
+        ],
+      },
+    ]
+  }, [previewByDataset])
+
+  const cleaningInsightsByDataset = useMemo(() => {
+    const output: Record<number, CleaningInsight[]> = {}
+    for (const [datasetIdRaw, rows] of Object.entries(previewByDataset)) {
+      const datasetId = Number(datasetIdRaw)
+      if (!rows || rows.length === 0) {
+        output[datasetId] = []
+        continue
+      }
+      const columns = Object.keys(rows[0])
+      output[datasetId] = columns.slice(0, 8).map((col) => {
+        let missing = 0
+        const distinct = new Set<string>()
+        for (const row of rows) {
+          const v = row[col]
+          if (v === null || v === undefined || String(v).trim() === '') missing += 1
+          distinct.add(String(v ?? ''))
+        }
+        return {
+          column: col,
+          missingPct: (missing / rows.length) * 100,
+          uniqueCount: distinct.size,
+        }
+      })
+    }
+    return output
+  }, [previewByDataset])
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
-      <div className="flex-1 overflow-auto p-6">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="flex-1 overflow-auto p-4 md:p-6">
         <div className="mb-8">
-          <div className="flex items-center justify-between mb-2">
-            <h1 className="text-3xl font-bold text-foreground">Datasets</h1>
-            <Link href="/dashboard/upload-dataset">
-              <Button className="bg-primary text-primary-foreground hover:bg-primary/90 gap-2">
-                <Upload className="w-4 h-4" />
-                Upload Data
+          <div className="mb-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-foreground md:text-3xl">Datasets</h1>
+              <p className="text-muted-foreground">
+                Exports include upload history, share links, column profiles, insights, and
+                chart data as tables (HTML or Print → PDF).
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-2 border-border"
+                disabled={sortedHistory.length === 0 || exporting || !accessToken}
+                onClick={() => void runPortfolioExport('html')}
+              >
+                <FileDown className="h-4 w-4" />
+                {exporting ? 'Preparing…' : 'Export HTML'}
               </Button>
-            </Link>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-2 border-border"
+                disabled={sortedHistory.length === 0 || exporting || !accessToken}
+                onClick={() => void runPortfolioExport('pdf')}
+              >
+                <Printer className="h-4 w-4" />
+                {exporting ? 'Preparing…' : 'Print / PDF'}
+              </Button>
+              <Button
+                asChild
+                className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
+              >
+                <Link href="/dashboard/upload-dataset">
+                  <Upload className="h-4 w-4" />
+                  Upload
+                </Link>
+              </Button>
+            </div>
           </div>
-          <p className="text-muted-foreground">Manage your data sources and imports</p>
         </div>
 
         {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
             {[1, 2, 3].map((i) => (
               <div
                 key={i}
-                className="h-48 bg-card border border-border rounded-lg animate-pulse"
+                className="h-48 animate-pulse rounded-lg border border-border bg-card"
               />
             ))}
           </div>
@@ -72,30 +388,251 @@ export default function DatasetsPage() {
             description="Upload or connect to a data source to get started"
             action={
               <Link href="/dashboard/upload-dataset">
-                <Button className="bg-primary text-primary-foreground hover:bg-primary/90 gap-2">
-                  <Upload className="w-4 h-4" />
+                <Button className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90">
+                  <Upload className="h-4 w-4" />
                   Upload Dataset
                 </Button>
               </Link>
             }
           />
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {datasets.map((dataset) => (
-              <Card key={dataset.id} className="bg-card border-border">
-                <CardHeader>
-                  <CardTitle className="line-clamp-2">{dataset.name}</CardTitle>
-                  <CardDescription className="text-xs">
-                    {dataset.source_type.toUpperCase()} • {dataset.row_count.toLocaleString()} rows
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground line-clamp-2">
-                    {dataset.description || 'No description'}
-                  </p>
-                </CardContent>
-              </Card>
-            ))}
+          <div className="space-y-10">
+            <section>
+              <h2 className="mb-3 text-lg font-semibold text-foreground">
+                Real estate analysis ideas
+              </h2>
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                {realEstateAnalysisIdeas.map((group) => (
+                  <Card key={group.title} className="border-border bg-card">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">{group.title}</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <ul className="list-disc space-y-1 pl-4 text-sm text-muted-foreground">
+                        {group.items.map((idea) => (
+                          <li key={idea}>{idea}</li>
+                        ))}
+                      </ul>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </section>
+
+            <section>
+              <h2 className="mb-3 text-lg font-semibold text-foreground">
+                Upload history
+              </h2>
+              <p className="mb-4 text-sm text-muted-foreground">
+                Newest first. Use export buttons above for a full portfolio (each dataset’s
+                analysis, tables, insights, and in-app share links).
+              </p>
+              <div className="overflow-x-auto rounded-lg border border-border bg-card">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead className="text-right">Rows</TableHead>
+                      <TableHead>Uploaded</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {sortedHistory.map((d) => (
+                      <TableRow key={d.id}>
+                        <TableCell className="max-w-[200px] truncate font-medium">
+                          {d.name}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-muted-foreground">
+                          {d.source_type.toUpperCase()}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {d.row_count.toLocaleString()}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-muted-foreground text-sm">
+                          {new Date(d.created_at).toLocaleString()}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </section>
+
+            <section>
+              <h2 className="mb-4 text-lg font-semibold text-foreground">
+                Visual cards & analytics
+              </h2>
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {sortedHistory.map((dataset) => (
+                  <Card
+                    key={dataset.id}
+                    id={`dataset-${dataset.id}`}
+                    className="scroll-mt-24 border-border bg-card"
+                  >
+                    <CardHeader>
+                      <CardTitle className="line-clamp-2">{dataset.name}</CardTitle>
+                      <CardDescription className="text-xs">
+                        {dataset.source_type.toUpperCase()} ·{' '}
+                        {dataset.row_count.toLocaleString()} rows
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <p className="line-clamp-2 text-sm text-muted-foreground">
+                        {dataset.description || 'No description'}
+                      </p>
+                      {(() => {
+                        const sampleRows = previewByDataset[dataset.id] ?? []
+                        const { lineBarData, pieData, scatterData } = getChartData(sampleRows)
+                        const avg =
+                          lineBarData.length > 0
+                            ? lineBarData.reduce((s, d) => s + Number(d.value || 0), 0) / lineBarData.length
+                            : 0
+                        const max = lineBarData.reduce((m, d) => Math.max(m, Number(d.value || 0)), 0)
+                        const min =
+                          lineBarData.length > 0
+                            ? lineBarData.reduce((m, d) => Math.min(m, Number(d.value || 0)), Number(lineBarData[0].value || 0))
+                            : 0
+                        return (
+                          <>
+                            <div className="grid grid-cols-3 gap-2 rounded-md border border-border bg-muted/30 p-2 text-xs">
+                              <div>
+                                <p className="text-muted-foreground">Avg</p>
+                                <p className="font-semibold">{avg.toLocaleString(undefined, { maximumFractionDigits: 1 })}</p>
+                              </div>
+                              <div>
+                                <p className="text-muted-foreground">Max</p>
+                                <p className="font-semibold">{max.toLocaleString(undefined, { maximumFractionDigits: 1 })}</p>
+                              </div>
+                              <div>
+                                <p className="text-muted-foreground">Min</p>
+                                <p className="font-semibold">{min.toLocaleString(undefined, { maximumFractionDigits: 1 })}</p>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-1 gap-3">
+                              <div className="h-36 rounded-md border border-border p-2">
+                                <ResponsiveContainer width="100%" height="100%">
+                                  <LineChart data={lineBarData}>
+                                    <CartesianGrid strokeDasharray="3 3" />
+                                    <XAxis dataKey="category" hide />
+                                    <YAxis hide />
+                                    <Tooltip />
+                                    <Line type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={2} dot={false} />
+                                  </LineChart>
+                                </ResponsiveContainer>
+                              </div>
+                              <div className="h-36 rounded-md border border-border p-2">
+                                <ResponsiveContainer width="100%" height="100%">
+                                  <BarChart data={lineBarData}>
+                                    <CartesianGrid strokeDasharray="3 3" />
+                                    <XAxis dataKey="category" hide />
+                                    <YAxis hide />
+                                    <Tooltip />
+                                    <Bar dataKey="value" fill="#10b981" radius={[4, 4, 0, 0]} />
+                                  </BarChart>
+                                </ResponsiveContainer>
+                              </div>
+                              <div className="grid grid-cols-2 gap-3">
+                                <div className="h-36 rounded-md border border-border p-2">
+                                  <ResponsiveContainer width="100%" height="100%">
+                                    <PieChart>
+                                      <Tooltip />
+                                      <Pie data={pieData} dataKey="value" nameKey="name" outerRadius={44}>
+                                        {pieData.map((_, idx) => (
+                                          <Cell key={idx} fill={PIE_COLORS[idx % PIE_COLORS.length]} />
+                                        ))}
+                                      </Pie>
+                                    </PieChart>
+                                  </ResponsiveContainer>
+                                </div>
+                                <div className="h-36 rounded-md border border-border p-2">
+                                  <ResponsiveContainer width="100%" height="100%">
+                                    <ScatterChart>
+                                      <CartesianGrid />
+                                      <XAxis type="number" dataKey="x" hide />
+                                      <YAxis type="number" dataKey="y" hide />
+                                      <Tooltip cursor={{ strokeDasharray: '3 3' }} />
+                                      <Scatter data={scatterData} fill="#8b5cf6" />
+                                    </ScatterChart>
+                                  </ResponsiveContainer>
+                                </div>
+                              </div>
+                            </div>
+                          </>
+                        )
+                      })()}
+                      <Collapsible
+                        open={insightsOpenForId === dataset.id}
+                        onOpenChange={(open) =>
+                          setInsightsOpenForId(open ? dataset.id : null)
+                        }
+                      >
+                        <CollapsibleTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full justify-between gap-2 border-border font-normal"
+                          >
+                            <span>Auto insights</span>
+                            <ChevronDown
+                              className={`h-4 w-4 shrink-0 transition-transform ${insightsOpenForId === dataset.id ? 'rotate-180' : ''}`}
+                            />
+                          </Button>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="pt-3 data-[state=closed]:animate-none">
+                          {insightsOpenForId === dataset.id && accessToken ? (
+                            <AutoInsightsPanelLoader
+                              datasetId={dataset.id}
+                              accessToken={accessToken}
+                              className="shadow-none"
+                            />
+                          ) : null}
+                        </CollapsibleContent>
+                      </Collapsible>
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="gap-2 border-border"
+                          onClick={() => void runSingleDatasetExport(dataset, 'html')}
+                        >
+                          <FileDown className="h-4 w-4" />
+                          Export HTML
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="gap-2 border-border"
+                          onClick={() => void runSingleDatasetExport(dataset, 'pdf')}
+                        >
+                          <Printer className="h-4 w-4" />
+                          Export PDF
+                        </Button>
+                      </div>
+                      <div className="rounded-md border border-border bg-muted/20 p-3">
+                        <h4 className="mb-2 text-sm font-medium text-foreground">Data cleaning</h4>
+                        {(cleaningInsightsByDataset[dataset.id] || []).length === 0 ? (
+                          <p className="text-xs text-muted-foreground">
+                            Not enough preview rows to evaluate cleaning.
+                          </p>
+                        ) : (
+                          <div className="space-y-1.5 text-xs text-muted-foreground">
+                            {(cleaningInsightsByDataset[dataset.id] || []).map((insight) => (
+                              <p key={insight.column}>
+                                <span className="font-medium text-foreground">{insight.column}</span>: missing{' '}
+                                {insight.missingPct.toFixed(1)}% · unique {insight.uniqueCount}
+                              </p>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </section>
           </div>
         )}
       </div>

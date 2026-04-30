@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
 import { apiPost, apiGet } from '@/lib/api'
+import { parseListResponse } from '@/lib/list-api'
 import { DashboardBuilderProvider, useDashboardBuilder } from '@/lib/dashboard-builder-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -38,7 +39,7 @@ function DashboardBuilderContent() {
     const fetchDatasets = async () => {
       try {
         const data = await apiGet('/api/datasets/', accessToken)
-        setDatasets(data.results || [])
+        setDatasets(parseListResponse<Dataset>(data))
       } catch (error) {
         console.error('Failed to fetch datasets:', error)
         setDatasets([])

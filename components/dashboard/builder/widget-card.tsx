@@ -48,7 +48,9 @@ export function WidgetCard({ widget, isSelected, onSelect, onEdit }: WidgetCardP
             <p className="text-xs text-muted-foreground">{WIDGET_TYPE_LABELS[widget.type]}</p>
           </div>
           {widget.datasetId && (
-            <p className="text-xs text-muted-foreground">Dataset: {widget.datasetId}</p>
+            <p className="text-xs text-muted-foreground truncate">
+              Dataset: {widget.config?.datasetLabel || widget.datasetId}
+            </p>
           )}
         </div>
 

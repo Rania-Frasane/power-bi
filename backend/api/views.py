@@ -2,6 +2,7 @@
 API views and endpoints for analytics dashboard.
 """
 
+import json
 import secrets
 import pandas as pd
 
@@ -26,6 +27,8 @@ from .serializers import (
     DashboardDetailSerializer, DashboardListSerializer,
     UserPreferenceSerializer
 )
+from .analysis import build_analysis_payload
+from .dataset_io import load_tabular_dataframe
 
 
 # =========================
@@ -95,21 +98,16 @@ class DatasetViewSet(viewsets.ModelViewSet):
 
     def _process_dataset(self, instance):
         try:
-            if not instance.file:
-                return
-
-            if instance.source_type == "csv":
-                df = pd.read_csv(instance.file)
-            elif instance.source_type == "excel":
-                df = pd.read_excel(instance.file)
-            elif instance.source_type == "json":
-                df = pd.read_json(instance.file)
-            else:
+            df = load_tabular_dataframe(instance)
+            if df is None:
                 return
 
             instance.schema = {col: str(df[col].dtype) for col in df.columns}
             instance.row_count = len(df)
-            instance.cached_data = df.head(1000).to_dict("records")
+            instance.cached_data = json.loads(
+                df.head(1000).to_json(orient="records", date_format="iso")
+            )
+            instance.analysis = build_analysis_payload(df)
             instance.last_refreshed = timezone.now()
             instance.save()
 
@@ -124,11 +122,147 @@ class DatasetViewSet(viewsets.ModelViewSet):
             self._process_dataset(dataset)
             return Response({
                 "status": "Dataset refreshed",
-                "row_count": dataset.row_count
+                "row_count": dataset.row_count,
+                "analysis": dataset.analysis or {},
             })
 
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=["get"])
+    def analysis(self, request, pk=None):
+        """Return persisted profiling + chart specs (same shape as upload response)."""
+        dataset = self.get_object()
+        return Response(dataset.analysis or {})
+
+    @action(detail=True, methods=["get"])
+    def data(self, request, pk=None):
+        """
+        Return dataset rows for dashboard widgets.
+        Uses cached data first; falls back to reading the dataset file.
+        """
+        dataset = self.get_object()
+        limit_raw = request.query_params.get("limit")
+        try:
+            limit = int(limit_raw) if limit_raw else None
+        except (TypeError, ValueError):
+            return Response({"error": "Invalid limit"}, status=status.HTTP_400_BAD_REQUEST)
+
+        rows = dataset.cached_data or []
+        if not rows:
+            try:
+                df = load_tabular_dataframe(dataset)
+            except Exception as e:
+                return Response(
+                    {"error": f"Could not read dataset: {e}"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if df is None:
+                return Response(
+                    {"error": "No tabular file available for this dataset."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            rows = json.loads(df.to_json(orient="records", date_format="iso"))
+
+        if isinstance(limit, int) and limit > 0:
+            rows = rows[:limit]
+
+        return Response({"data": rows, "row_count": len(rows)})
+
+    @action(detail=True, methods=["get"], url_path="analysis/table")
+    def analysis_table(self, request, pk=None):
+        """
+        Paginated tabular rows for large datasets (server-side filter + sort).
+
+        Query params:
+          page (default 1), page_size (default 8, max 100),
+          q — case-insensitive substring across all columns,
+          sort — column name, order — asc | desc (default asc).
+
+        Response: columnKeys, rows, total, page, page_size, page_count
+        """
+        dataset = self.get_object()
+
+        raw_page = request.query_params.get("page", "1")
+        raw_size = request.query_params.get("page_size", "8")
+        try:
+            page = int(raw_page)
+        except (TypeError, ValueError):
+            return Response({"error": "Invalid page"}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            page_size = int(raw_size)
+        except (TypeError, ValueError):
+            return Response(
+                {"error": "Invalid page_size"}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        page = max(1, page)
+        page_size = max(1, min(100, page_size))
+
+        q = (request.query_params.get("q") or "").strip()
+        sort_col = (request.query_params.get("sort") or "").strip()
+        order = (request.query_params.get("order") or "asc").lower()
+        if order not in ("asc", "desc"):
+            order = "asc"
+
+        try:
+            df = load_tabular_dataframe(dataset)
+        except Exception as e:
+            return Response(
+                {"error": f"Could not read dataset: {e}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if df is None:
+            return Response(
+                {"error": "No tabular file available for this dataset."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        column_keys = [str(c) for c in df.columns]
+
+        if q:
+            q_lower = q.lower()
+            mask = pd.Series(False, index=df.index)
+            for col in df.columns:
+                mask = mask | df[col].astype(str).str.lower().str.contains(
+                    q_lower, na=False, regex=False
+                )
+            df = df.loc[mask]
+
+        if sort_col:
+            if sort_col not in df.columns:
+                return Response(
+                    {"error": f"Unknown sort column: {sort_col}"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            try:
+                df = df.sort_values(
+                    by=sort_col, ascending=(order == "asc"), kind="mergesort"
+                )
+            except Exception as e:
+                return Response(
+                    {"error": f"Cannot sort by {sort_col}: {e}"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        total = int(len(df))
+        page_count = max(1, (total + page_size - 1) // page_size) if total else 1
+        current_page = min(page, page_count) if total else 1
+        start = (current_page - 1) * page_size
+        chunk = df.iloc[start : start + page_size]
+        rows = json.loads(chunk.to_json(orient="records", date_format="iso"))
+
+        return Response(
+            {
+                "columnKeys": column_keys,
+                "rows": rows,
+                "total": total,
+                "page": current_page,
+                "page_size": page_size,
+                "page_count": page_count,
+            }
+        )
 
 
 # =========================
@@ -159,14 +293,22 @@ class ExecuteQueryView(APIView):
             dataset = get_object_or_404(Dataset, id=dataset_id, user=request.user)
 
             if dataset.source_type in ["csv", "excel"] and dataset.file:
-                df = (
-                    pd.read_csv(dataset.file)
-                    if dataset.source_type == "csv"
-                    else pd.read_excel(dataset.file)
-                )
+                try:
+                    df = load_tabular_dataframe(dataset)
+                except Exception as e:
+                    return Response(
+                        {"error": str(e)}, status=status.HTTP_400_BAD_REQUEST
+                    )
+                if df is None:
+                    return Response(
+                        {"error": "Could not load dataset"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
 
                 # NOTE: real query engine not implemented
-                return Response({"data": df.to_dict("records")})
+                return Response(
+                    {"data": json.loads(df.to_json(orient="records", date_format="iso"))}
+                )
 
             return Response(
                 {"error": "Query not supported"},
