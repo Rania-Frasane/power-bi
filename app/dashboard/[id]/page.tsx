@@ -51,6 +51,13 @@ function compactNumber(value: number): string {
   )
 }
 
+type DatasetQualityInsight = {
+  datasetId: number
+  rows: number
+  columns: number
+  missingPct: number
+}
+
 function DashboardViewerContent() {
   const router = useRouter()
   const params = useParams()
@@ -82,6 +89,39 @@ function DashboardViewerContent() {
       totalRows,
       errors,
     }
+  })()
+
+  const qualityInsights: DatasetQualityInsight[] = (() => {
+    return Object.entries(datasets)
+      .map(([datasetIdRaw, rows]) => {
+        const datasetId = Number(datasetIdRaw)
+        const safeRows = Array.isArray(rows) ? rows : []
+        if (safeRows.length === 0) {
+          return { datasetId, rows: 0, columns: 0, missingPct: 100 }
+        }
+
+        const first = safeRows[0] as Record<string, unknown>
+        const cols = Object.keys(first)
+        let cells = 0
+        let missing = 0
+        for (const row of safeRows) {
+          for (const col of cols) {
+            cells += 1
+            const val = (row as Record<string, unknown>)[col]
+            if (val === null || val === undefined || String(val).trim() === '') {
+              missing += 1
+            }
+          }
+        }
+        return {
+          datasetId,
+          rows: safeRows.length,
+          columns: cols.length,
+          missingPct: cells > 0 ? (missing / cells) * 100 : 0,
+        }
+      })
+      .sort((a, b) => b.rows - a.rows)
+      .slice(0, 6)
   })()
 
   useEffect(() => {
@@ -282,6 +322,55 @@ function DashboardViewerContent() {
             </div>
           </Card>
         </div>
+
+        <Card className="border-border bg-card">
+          <div className="p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-foreground">
+                Data Quality & Insights
+              </h3>
+              <span className="text-xs text-muted-foreground">
+                Live from loaded datasets
+              </span>
+            </div>
+            {qualityInsights.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No dataset quality metrics available yet.
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+                {qualityInsights.map((insight) => (
+                  <div
+                    key={insight.datasetId}
+                    className="rounded-md border border-border bg-muted/20 p-3"
+                  >
+                    <p className="text-xs text-muted-foreground">
+                      Dataset #{insight.datasetId}
+                    </p>
+                    <p className="mt-1 text-sm text-foreground">
+                      {compactNumber(insight.rows)} rows · {insight.columns} cols
+                    </p>
+                    <div className="mt-2 h-2 w-full rounded bg-muted">
+                      <div
+                        className={`h-2 rounded ${
+                          insight.missingPct > 25
+                            ? 'bg-red-500'
+                            : insight.missingPct > 10
+                              ? 'bg-amber-500'
+                              : 'bg-emerald-500'
+                        }`}
+                        style={{ width: `${Math.min(100, insight.missingPct)}%` }}
+                      />
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Missing values: {insight.missingPct.toFixed(1)}%
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </Card>
 
         {/* Filters */}
         {filters.length > 0 && (
