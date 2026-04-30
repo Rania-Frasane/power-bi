@@ -62,6 +62,14 @@ type CleaningInsight = {
   uniqueCount: number
 }
 
+const NF = new Intl.NumberFormat('en-US')
+const NF_1 = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 })
+
+function stableDateTimeLabel(iso: string): string {
+  if (!iso) return 'N/A'
+  return iso.replace('T', ' ').slice(0, 19)
+}
+
 function sortDatasetsByDate(datasets: Dataset[]): Dataset[] {
   return [...datasets].sort(
     (a, b) =>
@@ -447,10 +455,10 @@ export default function DatasetsPage() {
                           {d.source_type.toUpperCase()}
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
-                          {d.row_count.toLocaleString()}
+                          {NF.format(d.row_count)}
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-muted-foreground text-sm">
-                          {new Date(d.created_at).toLocaleString()}
+                          {stableDateTimeLabel(d.created_at)}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -474,7 +482,7 @@ export default function DatasetsPage() {
                       <CardTitle className="line-clamp-2">{dataset.name}</CardTitle>
                       <CardDescription className="text-xs">
                         {dataset.source_type.toUpperCase()} ·{' '}
-                        {dataset.row_count.toLocaleString()} rows
+                        {NF.format(dataset.row_count)} rows
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-3">
@@ -498,15 +506,15 @@ export default function DatasetsPage() {
                             <div className="grid grid-cols-3 gap-2 rounded-md border border-border bg-muted/30 p-2 text-xs">
                               <div>
                                 <p className="text-muted-foreground">Avg</p>
-                                <p className="font-semibold">{avg.toLocaleString(undefined, { maximumFractionDigits: 1 })}</p>
+                                <p className="font-semibold">{NF_1.format(avg)}</p>
                               </div>
                               <div>
                                 <p className="text-muted-foreground">Max</p>
-                                <p className="font-semibold">{max.toLocaleString(undefined, { maximumFractionDigits: 1 })}</p>
+                                <p className="font-semibold">{NF_1.format(max)}</p>
                               </div>
                               <div>
                                 <p className="text-muted-foreground">Min</p>
-                                <p className="font-semibold">{min.toLocaleString(undefined, { maximumFractionDigits: 1 })}</p>
+                                <p className="font-semibold">{NF_1.format(min)}</p>
                               </div>
                             </div>
                             <div className="grid grid-cols-1 gap-3">

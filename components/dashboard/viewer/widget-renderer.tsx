@@ -37,6 +37,7 @@ function toWidgetConfig(widget: WidgetPosition): WidgetConfig {
     datasetId: widget.datasetId,
     columnMapping,
     layout: { x: widget.x, y: widget.y, w: widget.width, h: widget.height },
+    config: widget.config || {},
   }
 }
 

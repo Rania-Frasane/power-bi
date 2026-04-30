@@ -9,6 +9,7 @@ import pandas as pd
 from django.contrib.auth.models import User
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from django.http import HttpResponse
 
 from rest_framework import viewsets, status, serializers
 from rest_framework.decorators import action
@@ -29,6 +30,7 @@ from .serializers import (
 )
 from .analysis import build_analysis_payload
 from .dataset_io import load_tabular_dataframe
+from .cleaning import clean_dataframe
 
 
 # =========================
@@ -158,10 +160,8 @@ class DatasetViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             if df is None:
-                return Response(
-                    {"error": "No tabular file available for this dataset."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+                # Return an empty payload instead of 400 so dashboards can still load.
+                return Response({"data": [], "row_count": 0, "warning": "No tabular data"}, status=status.HTTP_200_OK)
             rows = json.loads(df.to_json(orient="records", date_format="iso"))
 
         if isinstance(limit, int) and limit > 0:
@@ -263,6 +263,129 @@ class DatasetViewSet(viewsets.ModelViewSet):
                 "page_count": page_count,
             }
         )
+
+    @action(detail=True, methods=["get"], url_path="cleaning/preview")
+    def cleaning_preview(self, request, pk=None):
+        """
+        Preview cleaning report + cleaned sample rows (JSON).
+
+        Query params:
+          limit (default 50) — number of cleaned rows to return
+          outlier_z (default 6.0) — robust z-score threshold
+          drop_duplicates (default 1), trim_strings (default 1), fix_numeric (default 1)
+          max_rows (default 50000) — cap rows processed for performance
+        """
+        dataset = self.get_object()
+        try:
+            df = load_tabular_dataframe(dataset)
+        except Exception as e:
+            return Response({"error": f"Could not read dataset: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if df is None:
+            return Response({"data": [], "report": {"warning": "No tabular data"}}, status=status.HTTP_200_OK)
+
+        def _bool_q(name: str, default: bool) -> bool:
+            raw = request.query_params.get(name)
+            if raw is None:
+                return default
+            return str(raw).strip().lower() not in ("0", "false", "no", "off")
+
+        try:
+            limit = int(request.query_params.get("limit", "50"))
+        except (TypeError, ValueError):
+            limit = 50
+        limit = max(0, min(200, limit))
+
+        try:
+            outlier_z = float(request.query_params.get("outlier_z", "6.0"))
+        except (TypeError, ValueError):
+            outlier_z = 6.0
+        outlier_z = max(2.0, min(20.0, outlier_z))
+
+        try:
+            max_rows = int(request.query_params.get("max_rows", "50000"))
+        except (TypeError, ValueError):
+            max_rows = 50000
+        max_rows = max(1000, min(200000, max_rows))
+
+        cleaned, report = clean_dataframe(
+            df,
+            drop_duplicates=_bool_q("drop_duplicates", True),
+            trim_strings=_bool_q("trim_strings", True),
+            fix_numeric=_bool_q("fix_numeric", True),
+            outlier_z=outlier_z,
+            max_rows=max_rows,
+        )
+
+        sample = cleaned.head(limit) if limit else cleaned.head(0)
+        rows = json.loads(sample.to_json(orient="records", date_format="iso"))
+        return Response(
+            {
+                "data": rows,
+                "columns": [str(c) for c in cleaned.columns],
+                "report": {
+                    "row_count": report.row_count,
+                    "duplicate_row_count": report.duplicate_row_count,
+                    "corrupted_cells": report.corrupted_cells,
+                    "outlier_cells": report.outlier_cells,
+                    "fixed_cells": report.fixed_cells,
+                    "fixed_by_column": report.fixed_by_column,
+                    "corrupted_by_column": report.corrupted_by_column,
+                    "outliers_by_column": report.outliers_by_column,
+                    "outlier_z": outlier_z,
+                    "max_rows": max_rows,
+                },
+            }
+        )
+
+    @action(detail=True, methods=["get"], url_path="cleaning/export")
+    def cleaning_export(self, request, pk=None):
+        """
+        Download a cleaned CSV using the same logic as cleaning_preview.
+
+        Query params are the same as /cleaning/preview (except limit is ignored).
+        """
+        dataset = self.get_object()
+        try:
+            df = load_tabular_dataframe(dataset)
+        except Exception as e:
+            return Response({"error": f"Could not read dataset: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if df is None:
+            return Response({"error": "No tabular data"}, status=status.HTTP_400_BAD_REQUEST)
+
+        def _bool_q(name: str, default: bool) -> bool:
+            raw = request.query_params.get(name)
+            if raw is None:
+                return default
+            return str(raw).strip().lower() not in ("0", "false", "no", "off")
+
+        try:
+            outlier_z = float(request.query_params.get("outlier_z", "6.0"))
+        except (TypeError, ValueError):
+            outlier_z = 6.0
+        outlier_z = max(2.0, min(20.0, outlier_z))
+
+        try:
+            max_rows = int(request.query_params.get("max_rows", "200000"))
+        except (TypeError, ValueError):
+            max_rows = 200000
+        max_rows = max(1000, min(500000, max_rows))
+
+        cleaned, _report = clean_dataframe(
+            df,
+            drop_duplicates=_bool_q("drop_duplicates", True),
+            trim_strings=_bool_q("trim_strings", True),
+            fix_numeric=_bool_q("fix_numeric", True),
+            outlier_z=outlier_z,
+            max_rows=max_rows,
+        )
+
+        csv_text = cleaned.to_csv(index=False)
+        filename = f"{dataset.name}-cleaned.csv".replace("/", "-")
+        resp = HttpResponse(csv_text, content_type="text/csv; charset=utf-8")
+        resp["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return resp
 
 
 # =========================

@@ -24,9 +24,19 @@ type Props = {
   title: string
 }
 
-export function ChartWidget({ type, data, columnMapping }: Props) {
+export function ChartWidget({
+  type,
+  data,
+  columnMapping,
+}: Props) {
   const xLabel = columnMapping.x || 'Category'
   const yLabel = columnMapping.y || 'Value'
+  const numericValues =
+    (columnMapping.y
+      ? data.map((d) => Number(d[columnMapping.y] ?? 0)).filter((v) => Number.isFinite(v))
+      : []) || []
+  const maxValue =
+    numericValues.length > 0 ? Math.max(...numericValues) : 1
 
   if (type === 'bar') {
     return (
@@ -50,7 +60,14 @@ export function ChartWidget({ type, data, columnMapping }: Props) {
           <XAxis dataKey={columnMapping.x} tick={{ fontSize: 11 }} label={{ value: xLabel, position: 'insideBottom', offset: -8 }} />
           <YAxis tick={{ fontSize: 11 }} label={{ value: yLabel, angle: -90, position: 'insideLeft' }} />
           <Tooltip />
-          <Line type="monotone" dataKey={columnMapping.y} stroke={COLORS[0]} strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 4 }} />
+          <Line
+            type="monotone"
+            dataKey={columnMapping.y}
+            stroke={COLORS[0]}
+            strokeWidth={2.5}
+            dot={{ r: 2, fill: COLORS[2] }}
+            activeDot={{ r: 5, fill: COLORS[4] }}
+          />
         </LineChart>
       </ResponsiveContainer>
     )

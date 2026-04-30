@@ -38,6 +38,8 @@ function buildPreviewData() {
   ] as Record<string, unknown>[]
 }
 
+// Colors are fixed (no per-widget customization).
+
 export function WidgetRenderer({
   widget,
   isEditMode,
@@ -91,6 +93,12 @@ export function WidgetRenderer({
       'deals'
     return { x, y, label, value }
   })()
+
+  // Fixed styling (no user-custom colors / no data-driven color modes)
+
+  const kpiValue =
+    widget.type === 'kpi' || widget.type === 'metric' ? effectiveData.length : 0
+  const kpiTone = 'text-foreground'
 
   return (
     <Card className="relative h-full overflow-hidden border-border bg-card">
@@ -154,8 +162,10 @@ export function WidgetRenderer({
                 <p className="text-sm text-muted-foreground">
                   {resolvedMapping.y || resolvedMapping.value || 'Metric'}
                 </p>
-                <p className="text-4xl font-bold text-foreground">
-                  {effectiveData.length.toLocaleString()}
+                <p
+                  className={`text-4xl font-bold ${kpiTone}`}
+                >
+                  {kpiValue.toLocaleString()}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">Records analyzed</p>
               </div>
@@ -169,7 +179,9 @@ export function WidgetRenderer({
                   <div
                     key={idx}
                     className="flex h-10 items-center justify-center rounded text-[10px]"
-                    style={{ backgroundColor: `rgba(59,130,246,${alpha})` }}
+                    style={{
+                      backgroundColor: `rgba(59,130,246,${alpha})`,
+                    }}
                     title={`${String(row[resolvedMapping.x || ''] ?? '')} / ${String(row[resolvedMapping.y || ''] ?? '')}: ${raw}`}
                   >
                     {raw.toFixed(0)}

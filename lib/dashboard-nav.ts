@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
-import { Cable, Database, Home, Settings } from 'lucide-react'
+import { Cable, Database, Home, Settings, Brush } from 'lucide-react'
 
 export type DashboardNavItem = {
   label: string
@@ -10,6 +10,7 @@ export type DashboardNavItem = {
 export const dashboardNavItems: DashboardNavItem[] = [
   { label: 'Dashboards', href: '/dashboard', icon: Home },
   { label: 'Datasets', href: '/dashboard/datasets', icon: Database },
+  { label: 'Data cleaning', href: '/dashboard/data-cleaning', icon: Brush },
   { label: 'Connections', href: '/dashboard/connections', icon: Cable },
   { label: 'Settings', href: '/dashboard/settings', icon: Settings },
 ]

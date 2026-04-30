@@ -20,6 +20,7 @@ export function RefreshControl({ onRefresh, isLoading = false }: RefreshControlP
   const [autoRefreshInterval, setAutoRefreshInterval] = useState<number | null>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null)
+  const DISABLED_VALUE = '__disabled__'
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true)
@@ -72,7 +73,7 @@ export function RefreshControl({ onRefresh, isLoading = false }: RefreshControlP
       <Select
         value={autoRefreshInterval?.toString() || ''}
         onValueChange={(value) => {
-          const interval = value ? parseInt(value) : null
+          const interval = value === DISABLED_VALUE ? null : value ? parseInt(value) : null
           setAutoRefreshInterval(interval)
         }}
       >
@@ -80,7 +81,7 @@ export function RefreshControl({ onRefresh, isLoading = false }: RefreshControlP
           <SelectValue placeholder="Auto-refresh" />
         </SelectTrigger>
         <SelectContent className="bg-card border-border">
-          <SelectItem value="">Disabled</SelectItem>
+          <SelectItem value={DISABLED_VALUE}>Disabled</SelectItem>
           <SelectItem value="5000">Every 5s</SelectItem>
           <SelectItem value="10000">Every 10s</SelectItem>
           <SelectItem value="30000">Every 30s</SelectItem>

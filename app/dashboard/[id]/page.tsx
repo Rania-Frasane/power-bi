@@ -386,7 +386,7 @@ function DashboardViewerContent() {
           <div
             className="grid gap-4"
             style={{
-              gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(540px, 1fr))',
             }}
           >
             {dashboard.widgets.map((widget) => {
@@ -395,7 +395,7 @@ function DashboardViewerContent() {
               const filteredData = getFilteredData(rawData, datasetId)
 
               return (
-                <div key={widget.id} className="h-96">
+                <div key={widget.id} className="h-[460px]">
                   <WidgetRenderer
                     widget={{
                       id: `widget-${widget.id}`,

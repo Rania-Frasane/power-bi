@@ -221,16 +221,6 @@ export function WidgetConfigurator({ datasets, onClose }: WidgetConfiguratorProp
               className="bg-background border-input"
             />
           </Field>
-          <Field>
-            <FieldLabel htmlFor="color">Primary Color</FieldLabel>
-            <Input
-              id="color"
-              type="color"
-              value={formData.config?.color || '#3b82f6'}
-              onChange={(e) => handleConfigChange('color', e.target.value)}
-              className="h-10 w-20 cursor-pointer"
-            />
-          </Field>
         </FieldGroup>
 
         {/* X-Axis (for charts) */}

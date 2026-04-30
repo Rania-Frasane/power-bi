@@ -13,6 +13,7 @@ export type WidgetConfig = {
   datasetId: string | number | null
   columnMapping: ColumnMapping
   layout: { x: number; y: number; w: number; h: number }
+  config?: Record<string, unknown>
 }
 
 export type DashboardPersistedConfig = {
@@ -42,6 +43,10 @@ function normalizeWidgetConfig(input: Partial<WidgetConfig>): WidgetConfig {
       w: input.layout?.w ?? 4,
       h: input.layout?.h ?? 3,
     },
+    config:
+      input.config && typeof input.config === 'object'
+        ? (input.config as Record<string, unknown>)
+        : {},
   }
 }
 
