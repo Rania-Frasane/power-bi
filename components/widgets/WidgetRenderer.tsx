@@ -42,6 +42,18 @@ export function WidgetRenderer({
     },
   })
 
+  const resolvedMapping = (() => {
+    const fallbackColumns = columns
+    const numericCols = fallbackColumns.filter((c) =>
+      data.some((row) => typeof row[c] === 'number'),
+    )
+    const x = widget.columnMapping.x || fallbackColumns[0] || ''
+    const y = widget.columnMapping.y || numericCols[0] || fallbackColumns[1] || fallbackColumns[0] || ''
+    const label = widget.columnMapping.label || fallbackColumns[0] || ''
+    const value = widget.columnMapping.value || numericCols[0] || fallbackColumns[1] || fallbackColumns[0] || ''
+    return { x, y, label, value }
+  })()
+
   return (
     <Card className="relative h-full overflow-hidden border-border bg-card">
       {isEditMode ? (
@@ -88,15 +100,15 @@ export function WidgetRenderer({
             <ChartWidget
               type={widget.type as 'bar' | 'line' | 'pie'}
               data={data}
-              columnMapping={widget.columnMapping}
+              columnMapping={resolvedMapping}
               title={widget.title}
             />
           ) : widget.type === 'scatter' ? (
             <ResponsiveContainer width="100%" height={300}>
               <ScatterChart>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey={widget.columnMapping.x} name={widget.columnMapping.x} />
-                <YAxis dataKey={widget.columnMapping.y} name={widget.columnMapping.y} />
+                <XAxis dataKey={resolvedMapping.x} name={resolvedMapping.x} />
+                <YAxis dataKey={resolvedMapping.y} name={resolvedMapping.y} />
                 <Tooltip />
                 <Scatter data={data} fill="#8b5cf6" />
               </ScatterChart>
@@ -105,7 +117,7 @@ export function WidgetRenderer({
             <div className="flex h-full items-center justify-center">
               <div className="text-center">
                 <p className="text-sm text-muted-foreground">
-                  {widget.columnMapping.y || widget.columnMapping.value || 'Metric'}
+                  {resolvedMapping.y || resolvedMapping.value || 'Metric'}
                 </p>
                 <p className="text-4xl font-bold text-foreground">
                   {data.length.toLocaleString()}
@@ -118,6 +130,7 @@ export function WidgetRenderer({
                 const raw =
                   Number(
                     row[widget.columnMapping.value || widget.columnMapping.y || ''] ?? 0,
+                    row[resolvedMapping.value || resolvedMapping.y || ''] ?? 0,
                   ) || 0
                 const alpha = Math.max(0.15, Math.min(0.95, raw / 100))
                 return (
@@ -125,7 +138,7 @@ export function WidgetRenderer({
                     key={idx}
                     className="flex h-10 items-center justify-center rounded text-[10px]"
                     style={{ backgroundColor: `rgba(59,130,246,${alpha})` }}
-                    title={`${String(row[widget.columnMapping.x || ''] ?? '')} / ${String(row[widget.columnMapping.y || ''] ?? '')}: ${raw}`}
+                    title={`${String(row[resolvedMapping.x || ''] ?? '')} / ${String(row[resolvedMapping.y || ''] ?? '')}: ${raw}`}
                   >
                     {raw.toFixed(0)}
                   </div>
