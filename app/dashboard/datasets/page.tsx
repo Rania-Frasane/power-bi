@@ -56,6 +56,12 @@ interface DatasetPreviewResponse {
 
 const PIE_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4']
 
+type CleaningInsight = {
+  column: string
+  missingPct: number
+  uniqueCount: number
+}
+
 function sortDatasetsByDate(datasets: Dataset[]): Dataset[] {
   return [...datasets].sort(
     (a, b) =>
@@ -252,6 +258,72 @@ export default function DatasetsPage() {
     [accessToken],
   )
 
+  const realEstateAnalysisIdeas = useMemo(() => {
+    const allCols = new Set<string>()
+    Object.values(previewByDataset).forEach((rows) => {
+      if (rows.length > 0) {
+        Object.keys(rows[0]).forEach((k) => allCols.add(k))
+      }
+    })
+    const cols = Array.from(allCols)
+    const has = (patterns: string[]) =>
+      cols.some((c) => patterns.some((p) => c.toLowerCase().includes(p)))
+
+    return [
+      {
+        title: 'Pricing & valuation',
+        items: [
+          has(['price']) ? 'Distribution des prix (mean/median/p90) par zone.' : 'Comparer les valeurs cibles par segment.',
+          has(['surface', 'area', 'sqm']) ? 'Prix au m2 par ville/quartier.' : 'Benchmark par catégorie de bien.',
+          'Détection d’outliers (biens sous/surévalués).',
+        ],
+      },
+      {
+        title: 'Features impact',
+        items: [
+          has(['rooms', 'bed', 'bath']) ? 'Impact rooms/bedrooms/bathrooms sur le prix.' : 'Impact des caractéristiques structurelles sur le prix.',
+          has(['garage', 'parking']) ? 'Prime de prix liée au garage/parking.' : 'Comparer options premium vs standard.',
+          has(['condition', 'quality']) ? 'Effet de la qualité/condition sur la valorisation.' : 'Effet des attributs qualitatifs.',
+        ],
+      },
+      {
+        title: 'Market trends',
+        items: [
+          has(['date', 'year', 'month']) ? 'Évolution temporelle des prix (MoM/YoY).' : 'Analyser les tendances par période disponible.',
+          'Volume des transactions par segment.',
+          'Top zones en croissance vs zones en baisse.',
+        ],
+      },
+    ]
+  }, [previewByDataset])
+
+  const cleaningInsightsByDataset = useMemo(() => {
+    const output: Record<number, CleaningInsight[]> = {}
+    for (const [datasetIdRaw, rows] of Object.entries(previewByDataset)) {
+      const datasetId = Number(datasetIdRaw)
+      if (!rows || rows.length === 0) {
+        output[datasetId] = []
+        continue
+      }
+      const columns = Object.keys(rows[0])
+      output[datasetId] = columns.slice(0, 8).map((col) => {
+        let missing = 0
+        const distinct = new Set<string>()
+        for (const row of rows) {
+          const v = row[col]
+          if (v === null || v === undefined || String(v).trim() === '') missing += 1
+          distinct.add(String(v ?? ''))
+        }
+        return {
+          column: col,
+          missingPct: (missing / rows.length) * 100,
+          uniqueCount: distinct.size,
+        }
+      })
+    }
+    return output
+  }, [previewByDataset])
+
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="flex-1 overflow-auto p-4 md:p-6">
@@ -325,6 +397,28 @@ export default function DatasetsPage() {
           />
         ) : (
           <div className="space-y-10">
+            <section>
+              <h2 className="mb-3 text-lg font-semibold text-foreground">
+                Real estate analysis ideas
+              </h2>
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                {realEstateAnalysisIdeas.map((group) => (
+                  <Card key={group.title} className="border-border bg-card">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">{group.title}</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <ul className="list-disc space-y-1 pl-4 text-sm text-muted-foreground">
+                        {group.items.map((idea) => (
+                          <li key={idea}>{idea}</li>
+                        ))}
+                      </ul>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </section>
+
             <section>
               <h2 className="mb-3 text-lg font-semibold text-foreground">
                 Upload history
@@ -516,6 +610,23 @@ export default function DatasetsPage() {
                           <Printer className="h-4 w-4" />
                           Export PDF
                         </Button>
+                      </div>
+                      <div className="rounded-md border border-border bg-muted/20 p-3">
+                        <h4 className="mb-2 text-sm font-medium text-foreground">Data cleaning</h4>
+                        {(cleaningInsightsByDataset[dataset.id] || []).length === 0 ? (
+                          <p className="text-xs text-muted-foreground">
+                            Not enough preview rows to evaluate cleaning.
+                          </p>
+                        ) : (
+                          <div className="space-y-1.5 text-xs text-muted-foreground">
+                            {(cleaningInsightsByDataset[dataset.id] || []).map((insight) => (
+                              <p key={insight.column}>
+                                <span className="font-medium text-foreground">{insight.column}</span>: missing{' '}
+                                {insight.missingPct.toFixed(1)}% · unique {insight.uniqueCount}
+                              </p>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
