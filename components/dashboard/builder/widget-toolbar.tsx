@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useDashboardBuilder } from '@/lib/dashboard-builder-context'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -48,7 +48,18 @@ export function WidgetToolbar({ datasets }: WidgetToolbarProps) {
     datasets.length > 0 ? datasets[0].id : null
   )
 
+  useEffect(() => {
+    if (datasets.length === 0) {
+      setSelectedDataset(null)
+      return
+    }
+    if (!selectedDataset || !datasets.some((d) => d.id === selectedDataset)) {
+      setSelectedDataset(datasets[0].id)
+    }
+  }, [datasets, selectedDataset])
+
   const handleAddWidget = (type: string) => {
+    if (!selectedDataset) return
     const newWidget = {
       id: `widget-${Date.now()}`,
       x: 0,
@@ -95,6 +106,7 @@ export function WidgetToolbar({ datasets }: WidgetToolbarProps) {
                     <div className="flex gap-2">
                       <Button
                         size="sm"
+                        disabled={!selectedDataset}
                         className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
                         onClick={() => {
                           handleAddWidget(type)
