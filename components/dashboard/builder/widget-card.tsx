@@ -2,8 +2,10 @@
 
 import { useDashboardBuilder, WidgetPosition } from '@/lib/dashboard-builder-context'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
 import { Copy, Trash2, Settings } from 'lucide-react'
+import { WidgetRenderer as UnifiedWidgetRenderer } from '@/components/widgets/WidgetRenderer'
+import { useDataset } from '@/hooks/useDataset'
+import type { WidgetConfig } from '@/store/dashboardStore'
 
 interface WidgetCardProps {
   widget: WidgetPosition
@@ -23,8 +25,40 @@ const WIDGET_TYPE_LABELS: Record<string, string> = {
   scatter: 'Scatter Plot',
 }
 
+function toWidgetConfig(widget: WidgetPosition): WidgetConfig {
+  return {
+    id: widget.id,
+    type:
+      widget.type === 'bar' ||
+      widget.type === 'line' ||
+      widget.type === 'pie' ||
+      widget.type === 'table' ||
+      widget.type === 'heatmap' ||
+      widget.type === 'scatter' ||
+      widget.type === 'kpi' ||
+      widget.type === 'metric'
+        ? widget.type
+        : 'bar',
+    title: widget.config?.title || widget.name || WIDGET_TYPE_LABELS[widget.type] || 'Widget',
+    datasetId: widget.datasetId,
+    columnMapping: {
+      x: widget.config?.xAxis || '',
+      y: widget.config?.yAxis || '',
+      label: widget.config?.labelKey || '',
+      value: widget.config?.valueKey || '',
+      columns: Array.isArray(widget.config?.columns) ? widget.config.columns : [],
+    },
+    layout: { x: widget.x, y: widget.y, w: widget.width, h: widget.height },
+  }
+}
+
 export function WidgetCard({ widget, isSelected, onSelect, onEdit }: WidgetCardProps) {
   const { removeWidget, duplicateWidget } = useDashboardBuilder()
+  const widgetConfig = toWidgetConfig(widget)
+  const dataset = useDataset({
+    datasetId: widget.datasetId,
+    columnMapping: widgetConfig.columnMapping,
+  })
 
   return (
     <div
@@ -38,24 +72,20 @@ export function WidgetCard({ widget, isSelected, onSelect, onEdit }: WidgetCardP
         height: `${widget.height * 50}px`,
       }}
     >
-      <Card
+      <div
         onClick={onSelect}
-        className="w-full h-full flex flex-col bg-card border-border cursor-move hover:border-primary transition-colors"
+        className="relative h-full w-full cursor-move overflow-hidden rounded-lg border border-border bg-card hover:border-primary transition-colors"
       >
-        <div className="flex-1 p-4 flex flex-col gap-2">
-          <div>
-            <h3 className="font-semibold text-sm text-foreground truncate">{widget.name}</h3>
-            <p className="text-xs text-muted-foreground">{WIDGET_TYPE_LABELS[widget.type]}</p>
-          </div>
-          {widget.datasetId && (
-            <p className="text-xs text-muted-foreground truncate">
-              Dataset: {widget.config?.datasetLabel || widget.datasetId}
-            </p>
-          )}
-        </div>
+        <UnifiedWidgetRenderer
+          widget={widgetConfig}
+          isEditMode={false}
+          prefetchedData={dataset.data}
+          prefetchedStatus={dataset.status}
+          prefetchedError={dataset.error}
+        />
 
         {isSelected && (
-          <div className="flex gap-1 p-2 border-t border-border bg-muted">
+          <div className="absolute bottom-0 left-0 right-0 flex gap-1 border-t border-border bg-muted p-2">
             <Button
               size="sm"
               variant="ghost"
@@ -94,7 +124,7 @@ export function WidgetCard({ widget, isSelected, onSelect, onEdit }: WidgetCardP
             </Button>
           </div>
         )}
-      </Card>
+      </div>
     </div>
   )
 }
