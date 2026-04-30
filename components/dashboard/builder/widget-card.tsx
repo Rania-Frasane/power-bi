@@ -24,6 +24,7 @@ const WIDGET_TYPE_LABELS: Record<string, string> = {
   heatmap: 'Heatmap',
   scatter: 'Scatter Plot',
 }
+const GRID_SIZE = 60
 
 function toWidgetConfig(widget: WidgetPosition): WidgetConfig {
   return {
@@ -66,10 +67,10 @@ export function WidgetCard({ widget, isSelected, onSelect, onEdit }: WidgetCardP
         isSelected ? 'ring-2 ring-primary/80 ring-offset-2' : 'hover:ring-2 hover:ring-muted'
       }`}
       style={{
-        left: `${widget.x * 50}px`,
-        top: `${widget.y * 50}px`,
-        width: `${widget.width * 50}px`,
-        height: `${widget.height * 50}px`,
+        left: `${widget.x * GRID_SIZE}px`,
+        top: `${widget.y * GRID_SIZE}px`,
+        width: `${widget.width * GRID_SIZE}px`,
+        height: `${widget.height * GRID_SIZE}px`,
       }}
     >
       <div

@@ -11,6 +11,8 @@ interface DashboardCanvasProps {
   canvasHeight?: number
 }
 
+const GRID_SIZE = 60
+
 export function DashboardCanvas({ onWidgetEdit, canvasWidth = 1200, canvasHeight = 800 }: DashboardCanvasProps) {
   const { widgets, selectWidget, selectedWidgetId, updateLayout } = useDashboardBuilder()
   const canvasRef = useRef<HTMLDivElement>(null)
@@ -24,8 +26,8 @@ export function DashboardCanvas({ onWidgetEdit, canvasWidth = 1200, canvasHeight
       if (widget) {
         setDraggingWidget(widgetId)
         setDragOffset({
-          x: e.clientX - rect.left - widget.x * 50,
-          y: e.clientY - rect.top - widget.y * 50,
+          x: e.clientX - rect.left - widget.x * GRID_SIZE,
+          y: e.clientY - rect.top - widget.y * GRID_SIZE,
         })
       }
     }
@@ -34,8 +36,8 @@ export function DashboardCanvas({ onWidgetEdit, canvasWidth = 1200, canvasHeight
   const handleMouseMove = (e: React.MouseEvent) => {
     if (draggingWidget && canvasRef.current) {
       const rect = canvasRef.current.getBoundingClientRect()
-      const newX = Math.max(0, Math.round((e.clientX - rect.left - dragOffset.x) / 50))
-      const newY = Math.max(0, Math.round((e.clientY - rect.top - dragOffset.y) / 50))
+      const newX = Math.max(0, Math.round((e.clientX - rect.left - dragOffset.x) / GRID_SIZE))
+      const newY = Math.max(0, Math.round((e.clientY - rect.top - dragOffset.y) / GRID_SIZE))
 
       const widget = widgets.find((w) => w.id === draggingWidget)
       if (widget) {
@@ -69,7 +71,7 @@ export function DashboardCanvas({ onWidgetEdit, canvasWidth = 1200, canvasHeight
             linear-gradient(to right, hsl(var(--border) / 0.55) 1px, transparent 1px),
             linear-gradient(to bottom, hsl(var(--border) / 0.55) 1px, transparent 1px)
           `,
-          backgroundSize: '50px 50px',
+          backgroundSize: `${GRID_SIZE}px ${GRID_SIZE}px`,
         }}
         onMouseLeave={handleMouseUp}
       >
