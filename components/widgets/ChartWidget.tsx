@@ -15,44 +15,19 @@ import {
   YAxis,
 } from 'recharts'
 
-const COLORS = [
-  '#3b82f6',
-  '#10b981',
-  '#f59e0b',
-  '#8b5cf6',
-  '#ef4444',
-  '#06b6d4',
-  '#14b8a6',
-  '#f97316',
-]
+const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4']
 
 type Props = {
   type: 'bar' | 'line' | 'pie'
   data: Record<string, unknown>[]
   columnMapping: { x?: string; y?: string; label?: string; value?: string }
   title: string
-  color?: string
-  colorMode?: 'dynamic' | 'custom'
-}
-
-function hexToRgb(hex: string): [number, number, number] {
-  const clean = hex.replace('#', '')
-  const full = clean.length === 3 ? clean.split('').map((c) => c + c).join('') : clean
-  const num = Number.parseInt(full, 16)
-  return [(num >> 16) & 255, (num >> 8) & 255, num & 255]
-}
-
-function withAlpha(hex: string, alpha: number): string {
-  const [r, g, b] = hexToRgb(hex)
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`
 }
 
 export function ChartWidget({
   type,
   data,
   columnMapping,
-  color = '#3b82f6',
-  colorMode = 'dynamic',
 }: Props) {
   const xLabel = columnMapping.x || 'Category'
   const yLabel = columnMapping.y || 'Value'
@@ -71,17 +46,7 @@ export function ChartWidget({
           <XAxis dataKey={columnMapping.x} tick={{ fontSize: 11 }} label={{ value: xLabel, position: 'insideBottom', offset: -8 }} />
           <YAxis tick={{ fontSize: 11 }} label={{ value: yLabel, angle: -90, position: 'insideLeft' }} />
           <Tooltip />
-          <Bar dataKey={columnMapping.y} radius={[4, 4, 0, 0]}>
-            {data.map((entry, idx) => {
-              const raw = Number(entry[columnMapping.y || ''] ?? 0)
-              const ratio = maxValue > 0 ? raw / maxValue : 0
-              if (colorMode === 'custom') {
-                return <Cell key={idx} fill={withAlpha(color, 0.35 + ratio * 0.65)} />
-              }
-              const colorIndex = Math.min(COLORS.length - 1, Math.floor(ratio * COLORS.length))
-              return <Cell key={idx} fill={COLORS[colorIndex]} />
-            })}
-          </Bar>
+          <Bar dataKey={columnMapping.y} fill={COLORS[0]} radius={[4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     )
@@ -98,10 +63,10 @@ export function ChartWidget({
           <Line
             type="monotone"
             dataKey={columnMapping.y}
-            stroke={colorMode === 'custom' ? color : COLORS[0]}
+            stroke={COLORS[0]}
             strokeWidth={2.5}
-            dot={{ r: 2, fill: colorMode === 'custom' ? withAlpha(color, 0.8) : COLORS[2] }}
-            activeDot={{ r: 5, fill: colorMode === 'custom' ? color : COLORS[4] }}
+            dot={{ r: 2, fill: COLORS[2] }}
+            activeDot={{ r: 5, fill: COLORS[4] }}
           />
         </LineChart>
       </ResponsiveContainer>
@@ -121,14 +86,7 @@ export function ChartWidget({
           outerRadius={110}
         >
           {data.map((_, idx) => (
-            <Cell
-              key={idx}
-              fill={
-                colorMode === 'custom'
-                  ? withAlpha(color, 0.35 + ((idx % 6) + 1) * 0.1)
-                  : COLORS[idx % COLORS.length]
-              }
-            />
+            <Cell key={idx} fill={COLORS[idx % COLORS.length]} />
           ))}
         </Pie>
       </PieChart>
