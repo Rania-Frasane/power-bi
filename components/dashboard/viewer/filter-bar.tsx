@@ -36,6 +36,7 @@ export function FilterBar({
   onAddFilter,
 }: FilterBarProps) {
   const [expandedFilters, setExpandedFilters] = useState(true)
+  const CLEAR_VALUE = '__clear__'
 
   if (!filters || filters.length === 0) {
     return null
@@ -95,13 +96,15 @@ export function FilterBar({
                   {filter.type === 'select' && filter.options && (
                     <Select
                       value={filter.value as string || ''}
-                      onValueChange={(v) => onFilterChange(filter.id, v || null)}
+                      onValueChange={(v) =>
+                        onFilterChange(filter.id, v === CLEAR_VALUE ? null : v || null)
+                      }
                     >
                       <SelectTrigger className="h-8 text-sm bg-background border-input">
                         <SelectValue placeholder="Select..." />
                       </SelectTrigger>
                       <SelectContent className="bg-card border-border">
-                        <SelectItem value="">Clear</SelectItem>
+                        <SelectItem value={CLEAR_VALUE}>Clear</SelectItem>
                         {filter.options.map((opt) => (
                           <SelectItem key={opt.value} value={opt.value}>
                             {opt.label}
