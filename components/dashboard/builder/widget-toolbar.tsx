@@ -75,18 +75,21 @@ export function WidgetToolbar({ datasets }: WidgetToolbarProps) {
   }
 
   return (
-    <Card className="bg-card border-border p-4">
+    <Card className="rounded-xl border-border bg-card/90 p-4 shadow-sm backdrop-blur">
       <div className="space-y-4">
         <div>
-          <h3 className="text-sm font-semibold text-foreground mb-3">Add Widgets</h3>
-          <div className="grid grid-cols-2 gap-2">
+          <h3 className="mb-1 text-sm font-semibold text-foreground">Add Widgets</h3>
+          <p className="mb-3 text-xs text-muted-foreground">
+            Pick a visual and drop it into the canvas.
+          </p>
+          <div className="grid grid-cols-2 gap-2.5">
             {WIDGET_OPTIONS.map(({ type, label, icon: Icon }) => (
               <Popover key={type}>
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-auto flex flex-col gap-1 py-2 border-border hover:bg-muted"
+                    className="h-auto min-h-16 flex-col gap-1.5 border-border bg-background/70 py-2 hover:bg-muted"
                   >
                     <Icon className="w-4 h-4" />
                     <span className="text-xs">{label}</span>
@@ -95,7 +98,7 @@ export function WidgetToolbar({ datasets }: WidgetToolbarProps) {
                 <PopoverContent className="w-48 bg-card border-border p-3">
                   <div className="space-y-3">
                     <div>
-                      <label className="text-sm font-medium text-foreground">Dataset</label>
+                      <label className="text-sm font-medium text-foreground">Dataset Source</label>
                       <p className="text-xs text-muted-foreground mt-1">
                         {datasets.length > 0
                           ? datasets.find((d) => d.id === selectedDataset)?.name ||
@@ -124,14 +127,14 @@ export function WidgetToolbar({ datasets }: WidgetToolbarProps) {
         </div>
 
         {datasets.length > 0 && (
-          <div className="border-t border-border pt-4">
+          <div className="rounded-md border border-border bg-muted/30 p-3">
             <h4 className="text-xs font-semibold text-foreground mb-2 uppercase">
               Default Dataset
             </h4>
             <select
               value={selectedDataset || ''}
               onChange={(e) => setSelectedDataset(parseInt(e.target.value))}
-              className="w-full px-2 py-1.5 text-sm bg-background border border-input rounded text-foreground"
+              className="w-full rounded border border-input bg-background px-2 py-1.5 text-sm text-foreground"
             >
               {datasets.map((d) => (
                 <option key={d.id} value={d.id}>

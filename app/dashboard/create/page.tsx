@@ -8,13 +8,11 @@ import { parseListResponse } from '@/lib/list-api'
 import { DashboardBuilderProvider, useDashboardBuilder } from '@/lib/dashboard-builder-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { FieldGroup, Field, FieldLabel } from '@/components/ui/field'
 import { DashboardCanvas } from '@/components/dashboard/builder/canvas'
 import { WidgetToolbar } from '@/components/dashboard/builder/widget-toolbar'
 import { WidgetConfigurator } from '@/components/dashboard/builder/widget-configurator'
 import { toast } from 'sonner'
-import { Save, X } from 'lucide-react'
+import { LayoutDashboard, Save, Sparkles, X } from 'lucide-react'
 
 interface Dataset {
   id: number
@@ -105,60 +103,62 @@ function DashboardBuilderContent() {
   }
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-background">
-      {/* Header */}
-      <div className="border-b border-border p-4 flex items-center justify-between bg-card">
-        <div className="flex-1">
-          <Input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Dashboard name"
-            className="text-lg font-semibold bg-background border-input mb-1"
-          />
-          <Input
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Add a description..."
-            className="text-sm bg-background border-input text-muted-foreground"
-          />
+    <div className="flex h-full flex-col overflow-hidden bg-background">
+      <div className="border-b border-border/80 bg-card/80 px-6 py-4 backdrop-blur">
+        <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
+          <LayoutDashboard className="h-4 w-4" />
+          <span>Analytics Dashboard Builder</span>
+          <Sparkles className="ml-1 h-3.5 w-3.5" />
         </div>
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1 space-y-2">
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Dashboard name"
+              className="h-11 border-input bg-background text-lg font-semibold"
+            />
+            <Input
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Add a short description..."
+              className="h-10 border-input bg-background text-sm text-muted-foreground"
+            />
+          </div>
 
-        <div className="flex items-center gap-2 ml-4">
-          <Button
-            onClick={() => router.back()}
-            variant="outline"
-            className="border-border hover:bg-muted"
-          >
-            <X className="w-4 h-4 mr-2" />
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSaveDashboard}
-            disabled={isSaving || widgets.length === 0}
-            className="bg-primary text-primary-foreground hover:bg-primary/90"
-          >
-            <Save className="w-4 h-4 mr-2" />
-            {isSaving ? 'Saving...' : 'Save Dashboard'}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={() => router.back()}
+              variant="outline"
+              className="border-border hover:bg-muted"
+            >
+              <X className="mr-2 h-4 w-4" />
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveDashboard}
+              disabled={isSaving || widgets.length === 0}
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              <Save className="mr-2 h-4 w-4" />
+              {isSaving ? 'Saving...' : 'Save Dashboard'}
+            </Button>
+          </div>
         </div>
       </div>
 
-      {/* Builder */}
-      <div className="flex-1 flex gap-4 overflow-hidden p-4">
-        {/* Toolbar */}
-        <div className="w-64 flex flex-col gap-4 overflow-y-auto">
+      <div className="flex flex-1 gap-4 overflow-hidden p-4 md:p-6">
+        <div className="w-72 shrink-0 overflow-y-auto">
           <WidgetToolbar datasets={datasets} />
         </div>
 
-        {/* Canvas */}
-        <div className="flex-1 flex gap-4 overflow-hidden">
-          <div className="flex-1 flex flex-col">
+        <div className="flex min-w-0 flex-1 gap-4 overflow-hidden">
+          <div className="flex min-w-0 flex-1 flex-col">
             <DashboardCanvas onWidgetEdit={() => setShowConfigurator(true)} />
           </div>
 
-          {/* Configurator */}
           {showConfigurator && (
-            <div className="w-80 overflow-y-auto">
+            <div className="w-96 max-w-[40vw] overflow-y-auto">
               <WidgetConfigurator
                 datasets={datasets}
                 onClose={() => setShowConfigurator(false)}
