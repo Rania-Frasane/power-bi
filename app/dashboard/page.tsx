@@ -20,6 +20,11 @@ interface Dashboard {
   created_at: string
 }
 
+function stableDateLabel(iso: string): string {
+  if (!iso) return 'N/A'
+  return iso.slice(0, 10)
+}
+
 export default function DashboardsPage() {
   const { accessToken } = useAuth()
   const [dashboards, setDashboards] = useState<Dashboard[]>([])
@@ -118,7 +123,7 @@ export default function DashboardsPage() {
                         </div>
                       )}
                       <div className="text-xs text-muted-foreground">
-                        Created {new Date(dashboard.created_at).toLocaleDateString()}
+                        Created {stableDateLabel(dashboard.created_at)}
                       </div>
                     </div>
                   </CardContent>

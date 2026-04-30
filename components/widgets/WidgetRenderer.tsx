@@ -22,6 +22,9 @@ type Props = {
   onOpenConfig?: () => void
   onDuplicate?: () => void
   onDelete?: () => void
+  prefetchedData?: Record<string, unknown>[]
+  prefetchedStatus?: 'idle' | 'loading' | 'ready' | 'error'
+  prefetchedError?: string | null
 }
 
 export function WidgetRenderer({
@@ -30,8 +33,11 @@ export function WidgetRenderer({
   onOpenConfig,
   onDuplicate,
   onDelete,
+  prefetchedData,
+  prefetchedStatus,
+  prefetchedError,
 }: Props) {
-  const { data, columns, status, error, refetch } = useDataset({
+  const dataset = useDataset({
     datasetId: widget.datasetId,
     columnMapping: {
       x: widget.columnMapping.x,
@@ -41,6 +47,11 @@ export function WidgetRenderer({
       columns: widget.columnMapping.columns,
     },
   })
+  const data = prefetchedData ?? dataset.data
+  const columns = data.length > 0 ? Object.keys(data[0]) : dataset.columns
+  const status = prefetchedStatus ?? dataset.status
+  const error = prefetchedError ?? dataset.error
+  const refetch = dataset.refetch
 
   const resolvedMapping = (() => {
     const fallbackColumns = columns
@@ -127,11 +138,7 @@ export function WidgetRenderer({
           ) : widget.type === 'heatmap' ? (
             <div className="grid grid-cols-6 gap-1 p-2">
               {data.slice(0, 48).map((row, idx) => {
-                const raw =
-                  Number(
-                    row[widget.columnMapping.value || widget.columnMapping.y || ''] ?? 0,
-                    row[resolvedMapping.value || resolvedMapping.y || ''] ?? 0,
-                  ) || 0
+                const raw = Number(row[resolvedMapping.value || resolvedMapping.y || ''] ?? 0) || 0
                 const alpha = Math.max(0.15, Math.min(0.95, raw / 100))
                 return (
                   <div

@@ -40,11 +40,23 @@ function toWidgetConfig(widget: WidgetPosition): WidgetConfig {
   }
 }
 
-export function WidgetRenderer({ widget }: WidgetRendererProps) {
+export function WidgetRenderer({ widget, data, isLoading, error }: WidgetRendererProps) {
+  const prefetchedStatus =
+    !widget.datasetId
+      ? 'idle'
+      : isLoading
+        ? 'loading'
+        : error
+          ? 'error'
+          : 'ready'
+
   return (
     <UnifiedWidgetRenderer
       widget={toWidgetConfig(widget)}
       isEditMode={false}
+      prefetchedData={data}
+      prefetchedStatus={prefetchedStatus}
+      prefetchedError={error ?? null}
     />
   )
 }

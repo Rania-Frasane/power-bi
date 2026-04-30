@@ -45,6 +45,12 @@ interface DatasetData {
   data: any[]
 }
 
+function compactNumber(value: number): string {
+  return Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(
+    value,
+  )
+}
+
 function DashboardViewerContent() {
   const router = useRouter()
   const params = useParams()
@@ -59,6 +65,24 @@ function DashboardViewerContent() {
   const [showExportModal, setShowExportModal] = useState(false)
   const [showSharingDialog, setShowSharingDialog] = useState(false)
   const [datasetErrors, setDatasetErrors] = useState<Record<number, string>>({})
+
+  const analyticsSummary = (() => {
+    const widgetCount = dashboard?.widgets?.length ?? 0
+    const linkedDatasetIds = new Set<number>(
+      (dashboard?.widgets ?? []).map((w) => w.dataset).filter(Boolean),
+    )
+    const totalRows = Object.values(datasets).reduce(
+      (sum, rows) => sum + (Array.isArray(rows) ? rows.length : 0),
+      0,
+    )
+    const errors = Object.values(datasetErrors).filter(Boolean).length
+    return {
+      widgetCount,
+      linkedDatasets: linkedDatasetIds.size,
+      totalRows,
+      errors,
+    }
+  })()
 
   useEffect(() => {
     if (!accessToken || !dashboardId) return
@@ -230,6 +254,35 @@ function DashboardViewerContent() {
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+          <Card className="border-border bg-card">
+            <div className="p-4">
+              <p className="text-xs text-muted-foreground">Widgets</p>
+              <p className="text-2xl font-bold text-foreground">{analyticsSummary.widgetCount}</p>
+            </div>
+          </Card>
+          <Card className="border-border bg-card">
+            <div className="p-4">
+              <p className="text-xs text-muted-foreground">Linked datasets</p>
+              <p className="text-2xl font-bold text-foreground">{analyticsSummary.linkedDatasets}</p>
+            </div>
+          </Card>
+          <Card className="border-border bg-card">
+            <div className="p-4">
+              <p className="text-xs text-muted-foreground">Rows loaded</p>
+              <p className="text-2xl font-bold text-foreground">
+                {compactNumber(analyticsSummary.totalRows)}
+              </p>
+            </div>
+          </Card>
+          <Card className="border-border bg-card">
+            <div className="p-4">
+              <p className="text-xs text-muted-foreground">Data issues</p>
+              <p className="text-2xl font-bold text-foreground">{analyticsSummary.errors}</p>
+            </div>
+          </Card>
+        </div>
+
         {/* Filters */}
         {filters.length > 0 && (
           <FilterBar
