@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
 import { apiGet } from '@/lib/api'
+import { parseListResponse } from '@/lib/list-api'
 import { DashboardViewerProvider, useDashboardViewer } from '@/lib/dashboard-viewer-context'
 import { WidgetRenderer } from '@/components/dashboard/viewer/widget-renderer'
 import { FilterBar, FilterValue } from '@/components/dashboard/viewer/filter-bar'
@@ -66,29 +67,21 @@ function DashboardViewerContent() {
         const dashboardRes = await apiGet(`/api/dashboards/${dashboardId}/`, accessToken)
         setDashboard(dashboardRes)
 
-        // Load data for all datasets
+        // Load data for all user datasets so dashboard can link/export all datasets.
         const datasetMap: Record<number, any[]> = {}
-
-        if (dashboardRes.widgets) {
-          const uniqueDatasets = [...new Set(dashboardRes.widgets.map((w: Widget) => w.dataset))]
-
-          for (const datasetId of uniqueDatasets) {
-            if (datasetId) {
-              try {
-                setWidgetLoading(datasetId, true)
-                const dataRes = await apiGet(
-                  `/api/datasets/${datasetId}/data/`,
-                  accessToken
-                )
-                datasetMap[datasetId] = dataRes.data || []
-                setWidgetData(datasetId, dataRes.data || [])
-              } catch (error) {
-                console.error(`Failed to fetch dataset ${datasetId}:`, error)
-                datasetMap[datasetId] = []
-              } finally {
-                setWidgetLoading(datasetId, false)
-              }
-            }
+        const allDatasetsRes = await apiGet('/api/datasets/', accessToken)
+        const allDatasetIds = parseListResponse<{ id: number }>(allDatasetsRes).map((d) => d.id)
+        for (const datasetId of allDatasetIds) {
+          try {
+            setWidgetLoading(datasetId, true)
+            const dataRes = await apiGet(`/api/datasets/${datasetId}/data/?limit=1000`, accessToken)
+            datasetMap[datasetId] = dataRes.data || []
+            setWidgetData(datasetId, dataRes.data || [])
+          } catch (error) {
+            console.error(`Failed to fetch dataset ${datasetId}:`, error)
+            datasetMap[datasetId] = []
+          } finally {
+            setWidgetLoading(datasetId, false)
           }
         }
 
@@ -144,22 +137,18 @@ function DashboardViewerContent() {
     try {
       const dashboardRes = await apiGet(`/api/dashboards/${dashboardId}/`, accessToken)
 
-      // Refresh all dataset data
-      if (dashboardRes.widgets) {
-        const uniqueDatasets = [...new Set(dashboardRes.widgets.map((w: Widget) => w.dataset))]
-
-        for (const datasetId of uniqueDatasets) {
-          if (datasetId) {
-            try {
-              setWidgetLoading(datasetId, true)
-              const dataRes = await apiGet(`/api/datasets/${datasetId}/data/`, accessToken)
-              setWidgetData(datasetId, dataRes.data || [])
-            } catch (error) {
-              console.error(`Failed to refresh dataset ${datasetId}:`, error)
-            } finally {
-              setWidgetLoading(datasetId, false)
-            }
-          }
+      // Refresh all user datasets to keep dashboard synced globally.
+      const allDatasetsRes = await apiGet('/api/datasets/', accessToken)
+      const allDatasetIds = parseListResponse<{ id: number }>(allDatasetsRes).map((d) => d.id)
+      for (const datasetId of allDatasetIds) {
+        try {
+          setWidgetLoading(datasetId, true)
+          const dataRes = await apiGet(`/api/datasets/${datasetId}/data/?limit=1000`, accessToken)
+          setWidgetData(datasetId, dataRes.data || [])
+        } catch (error) {
+          console.error(`Failed to refresh dataset ${datasetId}:`, error)
+        } finally {
+          setWidgetLoading(datasetId, false)
         }
       }
       toast.success('Dashboard refreshed')

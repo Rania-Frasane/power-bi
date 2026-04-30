@@ -29,11 +29,32 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Tooltip,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+  ScatterChart,
+  Scatter,
+} from 'recharts'
 import { ChevronDown, FileDown, Printer, Upload, Database } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 
 interface Dataset extends DatasetHistoryRow {}
+interface DatasetPreviewResponse {
+  sample_data?: Record<string, unknown>[]
+}
+
+const PIE_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4']
 
 function sortDatasetsByDate(datasets: Dataset[]): Dataset[] {
   return [...datasets].sort(
@@ -45,6 +66,7 @@ function sortDatasetsByDate(datasets: Dataset[]): Dataset[] {
 export default function DatasetsPage() {
   const { accessToken } = useAuth()
   const [datasets, setDatasets] = useState<Dataset[]>([])
+  const [previewByDataset, setPreviewByDataset] = useState<Record<number, Record<string, unknown>[]>>({})
   const [isLoading, setIsLoading] = useState(true)
   const [exporting, setExporting] = useState(false)
   const [insightsOpenForId, setInsightsOpenForId] = useState<number | null>(null)
@@ -95,6 +117,79 @@ export default function DatasetsPage() {
     window.addEventListener('hashchange', applyHash)
     return () => window.removeEventListener('hashchange', applyHash)
   }, [datasets])
+
+  useEffect(() => {
+    if (!accessToken || sortedHistory.length === 0) return
+    let cancelled = false
+    ;(async () => {
+      const entries = await Promise.all(
+        sortedHistory.map(async (dataset) => {
+          try {
+            const preview = (await apiGet(
+              `/api/datasets/${dataset.id}/preview/`,
+              accessToken,
+            )) as DatasetPreviewResponse
+            return [dataset.id, Array.isArray(preview.sample_data) ? preview.sample_data : []] as const
+          } catch {
+            return [dataset.id, []] as const
+          }
+        }),
+      )
+      if (cancelled) return
+      setPreviewByDataset(Object.fromEntries(entries))
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [accessToken, sortedHistory])
+
+  const getChartData = useCallback((rows: Record<string, unknown>[]) => {
+    if (!rows.length) {
+      return {
+        numericKeys: [] as string[],
+        categoricalKeys: [] as string[],
+        lineBarData: [] as Record<string, unknown>[],
+        pieData: [] as { name: string; value: number }[],
+        scatterData: [] as Record<string, number | string>[],
+      }
+    }
+
+    const keys = Object.keys(rows[0] ?? {})
+    const numericKeys = keys.filter((k) => rows.some((r) => typeof r[k] === 'number'))
+    const categoricalKeys = keys.filter((k) => !numericKeys.includes(k))
+
+    const categoryKey = categoricalKeys[0] ?? keys[0]
+    const valueKey = numericKeys[0]
+    const secondValueKey = numericKeys[1] ?? numericKeys[0]
+
+    const lineBarData = rows
+      .slice(0, 15)
+      .map((row, index) => ({
+        index: index + 1,
+        category: String(row[categoryKey] ?? `Item ${index + 1}`),
+        value: Number(row[valueKey] ?? 0),
+        value2: Number(row[secondValueKey] ?? 0),
+      }))
+
+    const pieAgg = new Map<string, number>()
+    for (const row of rows.slice(0, 200)) {
+      const key = String(row[categoryKey] ?? 'Other')
+      const current = pieAgg.get(key) ?? 0
+      pieAgg.set(key, current + Number(row[valueKey] ?? 1))
+    }
+    const pieData = Array.from(pieAgg.entries())
+      .slice(0, 6)
+      .map(([name, value]) => ({ name, value }))
+
+    const scatterData = rows.slice(0, 30).map((row, index) => ({
+      x: Number(row[valueKey] ?? index + 1),
+      y: Number(row[secondValueKey] ?? index + 1),
+      z: String(row[categoryKey] ?? `P${index + 1}`),
+    }))
+
+    return { numericKeys, categoricalKeys, lineBarData, pieData, scatterData }
+  }, [])
 
   const runPortfolioExport = useCallback(
     async (kind: 'html' | 'pdf') => {
@@ -271,7 +366,9 @@ export default function DatasetsPage() {
             </section>
 
             <section>
-              <h2 className="mb-4 text-lg font-semibold text-foreground">Cards & insights</h2>
+              <h2 className="mb-4 text-lg font-semibold text-foreground">
+                Visual cards & analytics
+              </h2>
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
                 {sortedHistory.map((dataset) => (
                   <Card
@@ -290,6 +387,86 @@ export default function DatasetsPage() {
                       <p className="line-clamp-2 text-sm text-muted-foreground">
                         {dataset.description || 'No description'}
                       </p>
+                      {(() => {
+                        const sampleRows = previewByDataset[dataset.id] ?? []
+                        const { lineBarData, pieData, scatterData } = getChartData(sampleRows)
+                        const avg =
+                          lineBarData.length > 0
+                            ? lineBarData.reduce((s, d) => s + Number(d.value || 0), 0) / lineBarData.length
+                            : 0
+                        const max = lineBarData.reduce((m, d) => Math.max(m, Number(d.value || 0)), 0)
+                        const min =
+                          lineBarData.length > 0
+                            ? lineBarData.reduce((m, d) => Math.min(m, Number(d.value || 0)), Number(lineBarData[0].value || 0))
+                            : 0
+                        return (
+                          <>
+                            <div className="grid grid-cols-3 gap-2 rounded-md border border-border bg-muted/30 p-2 text-xs">
+                              <div>
+                                <p className="text-muted-foreground">Avg</p>
+                                <p className="font-semibold">{avg.toLocaleString(undefined, { maximumFractionDigits: 1 })}</p>
+                              </div>
+                              <div>
+                                <p className="text-muted-foreground">Max</p>
+                                <p className="font-semibold">{max.toLocaleString(undefined, { maximumFractionDigits: 1 })}</p>
+                              </div>
+                              <div>
+                                <p className="text-muted-foreground">Min</p>
+                                <p className="font-semibold">{min.toLocaleString(undefined, { maximumFractionDigits: 1 })}</p>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-1 gap-3">
+                              <div className="h-36 rounded-md border border-border p-2">
+                                <ResponsiveContainer width="100%" height="100%">
+                                  <LineChart data={lineBarData}>
+                                    <CartesianGrid strokeDasharray="3 3" />
+                                    <XAxis dataKey="category" hide />
+                                    <YAxis hide />
+                                    <Tooltip />
+                                    <Line type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={2} dot={false} />
+                                  </LineChart>
+                                </ResponsiveContainer>
+                              </div>
+                              <div className="h-36 rounded-md border border-border p-2">
+                                <ResponsiveContainer width="100%" height="100%">
+                                  <BarChart data={lineBarData}>
+                                    <CartesianGrid strokeDasharray="3 3" />
+                                    <XAxis dataKey="category" hide />
+                                    <YAxis hide />
+                                    <Tooltip />
+                                    <Bar dataKey="value" fill="#10b981" radius={[4, 4, 0, 0]} />
+                                  </BarChart>
+                                </ResponsiveContainer>
+                              </div>
+                              <div className="grid grid-cols-2 gap-3">
+                                <div className="h-36 rounded-md border border-border p-2">
+                                  <ResponsiveContainer width="100%" height="100%">
+                                    <PieChart>
+                                      <Tooltip />
+                                      <Pie data={pieData} dataKey="value" nameKey="name" outerRadius={44}>
+                                        {pieData.map((_, idx) => (
+                                          <Cell key={idx} fill={PIE_COLORS[idx % PIE_COLORS.length]} />
+                                        ))}
+                                      </Pie>
+                                    </PieChart>
+                                  </ResponsiveContainer>
+                                </div>
+                                <div className="h-36 rounded-md border border-border p-2">
+                                  <ResponsiveContainer width="100%" height="100%">
+                                    <ScatterChart>
+                                      <CartesianGrid />
+                                      <XAxis type="number" dataKey="x" hide />
+                                      <YAxis type="number" dataKey="y" hide />
+                                      <Tooltip cursor={{ strokeDasharray: '3 3' }} />
+                                      <Scatter data={scatterData} fill="#8b5cf6" />
+                                    </ScatterChart>
+                                  </ResponsiveContainer>
+                                </div>
+                              </div>
+                            </div>
+                          </>
+                        )
+                      })()}
                       <Collapsible
                         open={insightsOpenForId === dataset.id}
                         onOpenChange={(open) =>
