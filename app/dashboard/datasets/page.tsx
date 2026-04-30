@@ -573,7 +573,7 @@ export default function DatasetsPage() {
                             size="sm"
                             className="w-full justify-between gap-2 border-border font-normal"
                           >
-                            <span>Auto insights</span>
+                            <span>Auto insightsggg</span>
                             <ChevronDown
                               className={`h-4 w-4 shrink-0 transition-transform ${insightsOpenForId === dataset.id ? 'rotate-180' : ''}`}
                             />
